@@ -1,9 +1,8 @@
-Explosive
-=========
-Detailed Chemical Abundances using The Cannon.
-
+Explosives
+==========
 [![Build Status](https://travis-ci.org/andycasey/explosive.svg?branch=master)](https://travis-ci.org/andycasey/explosive)
 
+Detailed chemical abundances using (an extension of) [The Cannon](http://adsabs.harvard.edu/abs/2015ApJ...808...16N).
 
 Authors
 -------
