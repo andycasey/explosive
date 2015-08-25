@@ -1,0 +1,22 @@
+# Crap.
+.gitignore
+*.pyc
+
+# Article crap.
+*.aux
+*.bbl
+*.blg
+*.dvi
+*.log
+*.pdf
+*.ps
+
+# Data crap.
+*.memmap
+*.pkl
+*.fits
+*.fits.*
+
+# Images crap.
+*.png
+
