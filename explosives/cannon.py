@@ -518,7 +518,7 @@ class CannonModel(model.BaseModel):
 
 
     @model.requires_training_wheels
-    def save(self, filename, overwrite=False, verify=True):
+    def save(self, filename, with_data=False, overwrite=False, verify=True):
         """
         Save the (trained) model to disk. This will save the label vector
         description, the optimised coefficients and scatter, and pivot offsets.
@@ -528,6 +528,13 @@ class CannonModel(model.BaseModel):
 
         :type filename:
             str
+
+        :param with_data: [optional]
+            Save the wavelengths, fluxes and flux uncertainties used to train
+            the model.
+
+        :type with_data:
+            bool
 
         :param overwrite: [optional]
             Overwrite the existing file path, if it already exists.
@@ -550,8 +557,12 @@ class CannonModel(model.BaseModel):
             hashes = None
 
         contents = \
-            (self._label_vector_description, self._coefficients, self._scatter,
-                self._offsets, hashes)
+            [self._label_vector_description, self._coefficients, self._scatter,
+                self._offsets, hashes]
+        if with_data:
+            contents.extend(
+                [self._wavelengths, self._fluxes, self._flux_uncertainties])
+
         with open(filename, "w") as fp:
             pickle.dump(contents, fp, -1)
 
@@ -601,8 +612,13 @@ class CannonModel(model.BaseModel):
                         "to that stored in {2} ({3})".format(descr, e_hash,
                             filename, r_hash)) 
 
-        self._label_vector_description, self._coefficients, self._scatter, \
-            self._offsets, hashes = contents
+        if len(contents) > 5:
+            self._label_vector_description, self._coefficients, self._scatter, \
+                self._offsets, hashes, self._wavelengths, self._fluxes, \
+                self._flux_uncertainties = contents
+        else:
+            self._label_vector_description, self._coefficients, self._scatter, \
+                self._offsets, hashes = contents
         self._trained = True
 
         return True
