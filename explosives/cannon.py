@@ -12,7 +12,7 @@ import numpy as np
 import scipy.optimize as op
 from . import (model, plot, utils)
 
-logger = logging.getLogger("cannon")
+logger = logging.getLogger("explosives")
 
 
 class CannonModel(model.BaseModel):
