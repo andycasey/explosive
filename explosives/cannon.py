@@ -10,7 +10,7 @@ import logging
 import numpy as np
 
 import scipy.optimize as op
-from . import (model, plot, utils)
+from . import (atomic, model, plot, utils)
 
 logger = logging.getLogger("explosives")
 
@@ -63,7 +63,7 @@ class CannonModel(model.BaseModel):
             The human-readable form of the label vector description.
 
         :type label_vector_description:
-            str
+            str or list of str
 
         :param N: [optional]
             Limit the number of stars used in the training set. If left to None,
