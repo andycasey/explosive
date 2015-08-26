@@ -10,7 +10,7 @@ import logging
 import numpy as np
 
 import scipy.optimize as op
-from . import (atomic, model, plot, utils)
+from . import (model, plot, utils)
 
 logger = logging.getLogger("explosives")
 
@@ -50,8 +50,8 @@ class CannonModel(model.BaseModel):
             :class:`np.ndarray`
         """
 
-        super(self.__class__, self).__init__(labels, fluxes, flux_uncertainties,
-            verify=verify, wavelengths=wavelengths)
+        super(CannonModel, self).__init__(labels, fluxes, flux_uncertainties,
+            wavelengths, verify)
 
 
     def train(self, label_vector_description, N=None, limits=None, pivot=False,
@@ -103,8 +103,8 @@ class CannonModel(model.BaseModel):
         coefficients = np.nan * np.ones((N_pixels, lva.shape[0]))
         
         pb_size = 100 if __kwargs.pop("__progressbar", True) else 0
-        pb_message = "Training Cannon model from {0} stars with {1} pixels:\n"\
-            .format(N_stars, N_pixels)
+        pb_message = "Training {0} model from {1} stars with {2} pixels:\n"\
+            .format(self.__class__.__name__[:-5], N_stars, N_pixels)
         for i in utils.progressbar(range(N_pixels), pb_message, pb_size):
 
             coefficients[i, :], scatter[i] = _fit_pixel(
@@ -476,7 +476,7 @@ class CannonModel(model.BaseModel):
         return theta
 
 
-    def _repr_label_vector_description(self, label_vector_indices):
+    def _repr_label_vector_description(self, label_vector_indices, **kwargs):
         """
         Represent label vector indices as a readable label vector description.
 
@@ -488,7 +488,7 @@ class CannonModel(model.BaseModel):
             A human-readable string of the label vector description.
         """
 
-        string = ["1"]
+        string = [kwargs.pop("__first_vector_desc", "1")]
         for cross_terms in label_vector_indices:
             sub_string = []
             for descr, order in cross_terms:
