@@ -5,7 +5,6 @@
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-import cPickle as pickle
 import logging
 import numpy as np
 
@@ -18,7 +17,8 @@ logger = logging.getLogger("explosives")
 class ExplosivesModel(cannon.CannonModel):
 
     _save_attributes = ("_coefficients", "_scatter", "_offsets", "_ew_model")
-    _data_attributes = ("_wavelengths", "_fluxes", "_flux_uncertainties")
+    _data_attributes = ("_labels", "_wavelengths", "_fluxes",
+        "_flux_uncertainties")
 
     def __init__(self, labels, wavelengths, fluxes, flux_uncertainties,
         verify=True):
@@ -137,13 +137,21 @@ class ExplosivesModel(cannon.CannonModel):
 
             N_species = len(atomic_lines)
             N_transitions = sum(map(len, atomic_lines.values()))
+
+            msg = []
+            for k, v in atomic_lines.items():
+                msg.append("{0} (species {1}; {2} lines)".format(
+                    k, ", ".join(map(str, set(v["species"]))), len(v)))
+
             logger.info("Including {0} weak lines from {1} elements: {2}".format(
-                N_transitions, N_species, ", ".join(atomic_lines.keys())))
+                N_transitions, N_species, ", ".join(msg)))
 
             # Build the log(X)->EW models (or vice-versa, sigh)
 
             # Estimate the FWHM kernel for each star, or estimate from all stars
             # (We need the FWHM to link the EW to an actual flux value.)
+            # [TODO]
+
             p_sigma = 0.35
 
             # We should calculate the expected EWs (and therefore fluxes) for
@@ -225,7 +233,7 @@ class ExplosivesModel(cannon.CannonModel):
         self._trained = True
         self._coefficients, self._scatter = coefficients, scatter
         self._offsets, self._ew_model = offsets, ew_model
-        
+
         return (coefficients, scatter, offsets, ew_model)
 
 

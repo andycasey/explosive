@@ -7,6 +7,8 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import cPickle as pickle
 import numpy as np
+import os
+
 
 def requires_training_wheels(f):
     """
@@ -212,15 +214,14 @@ class BaseModel(object):
         if os.path.exists(filename) and not overwrite:
             raise IOError("filename '{}' exists, asked not to overwrite".format(
                 filename))
-        
+
         with open(filename, "w") as fp:
             pickle.dump(contents, fp, -1)
 
         return True
 
-
-    @classmethod
-    def load(cls, filename, verify=True):
+    
+    def load(self, filename, verify=True):
         """
         Load a trained model from disk.
 
@@ -253,26 +254,83 @@ class BaseModel(object):
             contents = pickle.load(fp)
 
         # Contents is: trained attributes, data hash, [data trained on]
-        trained_contents = dict(zip(cls._trained_attributes, contents))
+        trained_contents = dict(zip(self._trained_attributes, contents))
         N = len(trained_contents)
         expected_data_hash = contents[N]
 
-        _repr_data_attributes = [_[1:] for _ in cls._data_attributes]
         if len(contents) > N + 1:
             # There was data as well.
-            data_contents = dict(zip(_repr_data_attributes, contents[N + 1:]))
+            data_contents = dict(zip(self._data_attributes, contents[N + 1:]))
             if verify and expected_data_hash is not None:
                 actual_data_hash = _short_hash(data_contents)
                 if actual_data_hash != expected_data_hash:
                     raise ValueError("expected data hash ({0}) is different "\
                         "({1})".format(expected_data_hash, actual_data_hash))
 
-        else:
-            data_contents = dict(zip(_repr_data_attributes,
-                [getattr(self, k) for k in cls._data_attributes]))
+            # Set the data attributes.
+            for k, v in data_contents.items():
+                setattr(self, k, v)
 
-        # Initialise a model.
-        model = cls(**data_contents)
+        # Set the training attributes.
+        for k, v in trained_contents.items():
+            setattr(self, k, v)
+
+        self._trained = True
+        return True
+
+
+    @classmethod
+    def from_filename(cls, filename, verify=True):
+        """
+        Initialise a trained model from disk. The saved model must include data.
+
+        :param filename:
+            The file path where to load the model from.
+
+        :type filename:
+            str
+
+        :param verify: [optional]
+            Verify whether the hashes in the stored filename match what is
+            expected from the label, flux and flux uncertainty arrays.
+
+        :type verify:
+            bool
+
+        :returns:
+            True
+
+        :raises IOError:
+            If the model could not be loaded.
+
+        :raises ValueError:
+            If the current hash of the labels, fluxes, or flux uncertainties is
+            different than what was stored in the filename. Disable this option
+            (at your own risk) by setting `verify` to False.
+        """
+
+        with open(filename, "r") as fp:
+            contents = pickle.load(fp)
+
+        # Contents is: trained attributes, data hash, data trained on
+        trained_contents = dict(zip(cls._trained_attributes, contents))
+        N = len(trained_contents)
+        expected_data_hash = contents[N]
+
+        if N + 1 >= len(contents):
+            raise TypeError("saved model in {} does not include data".format(
+                filename))
+
+        # There was data as well.
+        if verify and expected_data_hash is not None:
+            actual_data_hash = _short_hash(contents[N + 1:])
+            if actual_data_hash != expected_data_hash:
+                raise ValueError("expected data hash ({0}) is different ({1})"\
+                    .format(expected_data_hash, actual_data_hash))
+
+        # Create the model by initialising it with the data attributes.
+        model = cls(**dict(zip([_[1:] for _ in cls._data_attributes],
+            contents[N + 1:])))
 
         # Set the training attributes.
         for k, v in trained_contents.items():
