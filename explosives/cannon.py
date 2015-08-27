@@ -5,7 +5,6 @@
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
-import cPickle as pickle
 import logging
 import numpy as np
 
@@ -18,7 +17,8 @@ logger = logging.getLogger("explosives")
 class CannonModel(model.BaseModel):
 
     _trained_attributes = ("_coefficients", "_scatter", "_offsets")
-    _data_attributes = ("_wavelengths", "_fluxes", "_flux_uncertainties")
+    _data_attributes = ("_labels", "_wavelengths", "_fluxes",
+        "_flux_uncertainties")
 
     def __init__(self, labels, wavelengths, fluxes, flux_uncertainties,
         verify=True):

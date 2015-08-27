@@ -5,6 +5,7 @@
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+import cPickle as pickle
 import numpy as np
 
 def requires_training_wheels(f):
@@ -18,7 +19,7 @@ def requires_training_wheels(f):
     return wrapper
 
 
-def _short_hash(self, contents):
+def _short_hash(contents):
     """ Return a short hash of some iterable contents. """
     return "".join([str(hash(str(item)))[:10] for item in contents])
 
@@ -26,7 +27,8 @@ def _short_hash(self, contents):
 class BaseModel(object):
 
     _trained_attributes = None
-    _data_attributes = None
+    _data_attributes = ("_labels", "_fluxes", "_flux_uncertainties",
+        "_wavelengths")
     
     def __init__(self, labels, fluxes, flux_uncertainties, wavelengths=None,
         verify=True):
@@ -158,7 +160,7 @@ class BaseModel(object):
 
     @property
     def _trained_hash(self):
-        """ Return a hash of the trained state. """
+        """ Return a short joint hash of the trained attributes. """
 
         if not self._trained: return None
         return _short_hash([getattr(self, _) for _ in self._trained_attributes])
@@ -166,15 +168,16 @@ class BaseModel(object):
 
     @property
     def _data_hash(self):
-        """ Return a hash of the data. """
+        """ Return a short joint hash of the data attributes. """
+
         return _short_hash([getattr(self, _) for _ in self._data_attributes])
 
 
-    @model.requires_training_wheels
+    @requires_training_wheels
     def save(self, filename, with_data=False, overwrite=False):
         """
-        Save the (trained) model to disk. This will save the label vector
-        description, the optimised coefficients and scatter, and pivot offsets.
+        Save the (trained) model to disk. This will save all of the relevant
+        training attributes, and optionally, the data attributes.
 
         :param filename:
             The file path where to save the model to.
@@ -183,8 +186,7 @@ class BaseModel(object):
             str
 
         :param with_data: [optional]
-            Save the wavelengths, fluxes and flux uncertainties used to train
-            the model.
+            Also the the data used to train the model.
 
         :type with_data:
             bool
@@ -202,20 +204,23 @@ class BaseModel(object):
             If the model has not been trained, since there is nothing to save.
         """
 
-        assert None not in (self._data_attributes, self._trained_attributes)
-
         contents = [getattr(self, _) for _ in self._trained_attributes]
         contents += [self._data_hash]
         if with_data:
             contents.extend([getattr(self, _) for _ in self._data_attributes])
 
+        if os.path.exists(filename) and not overwrite:
+            raise IOError("filename '{}' exists, asked not to overwrite".format(
+                filename))
+        
         with open(filename, "w") as fp:
             pickle.dump(contents, fp, -1)
 
         return True
 
 
-    def load(self, filename, verify=True):
+    @classmethod
+    def load(cls, filename, verify=True):
         """
         Load a trained model from disk.
 
@@ -244,32 +249,34 @@ class BaseModel(object):
             (at your own risk) by setting `verify` to False.
         """
 
-        assert None not in (self._data_attributes, self._trained_attributes)
-        
         with open(filename, "r") as fp:
             contents = pickle.load(fp)
 
         # Contents is: trained attributes, data hash, [data trained on]
-        trained_contents = dict(zip(self._trained_attributes, contents))
+        trained_contents = dict(zip(cls._trained_attributes, contents))
         N = len(trained_contents)
         expected_data_hash = contents[N]
 
+        _repr_data_attributes = [_[1:] for _ in cls._data_attributes]
         if len(contents) > N + 1:
             # There was data as well.
-            data_contents = dict(zip(self._data_attributes, contents[N + 1:]))
+            data_contents = dict(zip(_repr_data_attributes, contents[N + 1:]))
             if verify and expected_data_hash is not None:
                 actual_data_hash = _short_hash(data_contents)
                 if actual_data_hash != expected_data_hash:
                     raise ValueError("expected data hash ({0}) is different "\
                         "({1})".format(expected_data_hash, actual_data_hash))
 
-            # Set the data attributes.
-            for k, v in data_contents.items():
-                setattr(self, k, v)
+        else:
+            data_contents = dict(zip(_repr_data_attributes,
+                [getattr(self, k) for k in cls._data_attributes]))
+
+        # Initialise a model.
+        model = cls(**data_contents)
 
         # Set the training attributes.
         for k, v in trained_contents.items():
-            setattr(self, k, v)
-            
-        self._trained = True
-        return True
+            setattr(model, k, v)
+
+        model._trained = True
+        return model
