@@ -9,12 +9,12 @@ import logging
 import numpy as np
 import scipy.optimize as op
 
-import oracle.synthesis
+from oracle import photospheres, synthesis
 
 logger = logging.getLogger("explosives")
 
 
-def approximate_atomic_transitions(stellar_parameters, transitions,
+def approximate_atomic_transitions(stellar_parameters, transitions, X_H=False,
     ew_points=None, photosphere_kwargs=None, synthesis_kwargs=None, **kwargs):
     """
     Return functions to approximate the equivalent width of atomic transitions
@@ -38,10 +38,17 @@ def approximate_atomic_transitions(stellar_parameters, transitions,
     :type transitions:
         :class:`~astropy.table.Table`
 
+    :param X_H: [optional]
+        Use abundances in X_H format. If set to `False`, then log(X) abundance
+        formats are assumed.
+
+    :type X_H:
+        bool
+
     :param ew_points: [optional]
         The equivalent widths (EWs) to sample at each set of stellar parameters
         for each atomic line. If `None` is provided, then 30 EW values between
-        (1, 300) milliAngstroms will be sampled for each star.
+        (10, 300) milliAngstroms will be sampled for each star.
 
     :type ew_points:
         list
@@ -64,7 +71,7 @@ def approximate_atomic_transitions(stellar_parameters, transitions,
     if False:
         # Calculate abundances for all lines in all stars.
         ews, abundances = _atomic_line_abundances(stellar_parameters, transitions,
-            ew_points=ew_points, photosphere_kwargs=photosphere_kwargs,
+            X_H=X_H, ew_points=ew_points, photosphere_kwargs=photosphere_kwargs,
             synthesis_kwargs=synthesis_kwargs, **kwargs)
 
         with open("tmp.pkl", "wb") as fp:
@@ -72,6 +79,10 @@ def approximate_atomic_transitions(stellar_parameters, transitions,
     else:
         with open("tmp.pkl", "rb") as fp:
             ews, abundances = pickle.load(fp)
+
+        if X_H:
+            logger.warn("ASSUMING ALL FE")
+            abundances -= 7.5
 
     # f(teff, logg, EW) --> logX
     full_output = kwargs.pop("full_output", False)
@@ -110,16 +121,26 @@ def xi_relation(effective_temperature, surface_gravity):
         float
     """
 
-    xi = np.nan * np.ones(len(effective_temperature))
-    giants = surface_gravity >= 3.5
-    xi[giants] = 1.28 + 3.3e-4 * (effective_temperature[giants] - 6000) \
-        - 0.64 * (surface_gravity[giants] - 4.5)
-    xi[~giants] = 2.70 - 0.509 * surface_gravity[~giants]
+    try:
+        _ = len(effective_temperature)
+
+    except TypeError:
+        if surface_gravity >= 3.5:
+            xi = 1.28 + 3.3e-4 * (effective_temperature - 6000) \
+                - 0.64 * (surface_gravity - 4.5)
+        else:
+            xi = 2.70 - 0.509 * surface_gravity
+    else:
+        xi = np.nan * np.ones(len(effective_temperature))
+        dwarfs = surface_gravity >= 3.5
+        xi[dwarfs] = 1.28 + 3.3e-4 * (effective_temperature[dwarfs] - 6000) \
+            - 0.64 * (surface_gravity[dwarfs] - 4.5)
+        xi[~dwarfs] = 2.70 - 0.509 * surface_gravity[~dwarfs]
     return xi
 
 
-def _atomic_line_abundances(stellar_parameters, transitions, ew_points=None,
-    photosphere_kwargs=None, synthesis_kwargs=None, **kwargs):
+def _atomic_line_abundances(stellar_parameters, transitions, X_H=False,
+    ew_points=None, photosphere_kwargs=None, synthesis_kwargs=None, **kwargs):
     """
     Calculate atomic line abundances at different equivalent width values for
     some set of stellar parameters.
@@ -141,6 +162,13 @@ def _atomic_line_abundances(stellar_parameters, transitions, ew_points=None,
 
     :type transitions:
         :class:`~astropy.table.Table`
+
+    :param X_H: [optional]
+        Use abundances in X_H format. If set to `False`, then log(X) abundance
+        formats are assumed.
+
+    :type X_H:
+        bool
 
     :param ew_points: [optional]
         The equivalent widths (EWs) to sample at each set of stellar parameters
@@ -199,7 +227,7 @@ def _atomic_line_abundances(stellar_parameters, transitions, ew_points=None,
                 "range ({2}, {3})".format(parameter, i, lower, upper))
 
     # Generate values for parameters, where necessary.
-    if ew_points is None: ew_points = np.linspace(1, 300, 30)
+    if ew_points is None: ew_points = np.linspace(10, 300, 30)
     synthesis_kwargs = synthesis_kwargs or {}
     photosphere_kwargs = photosphere_kwargs or {}
 
@@ -218,15 +246,23 @@ def _atomic_line_abundances(stellar_parameters, transitions, ew_points=None,
             stellar_parameters[:, 1].min(), stellar_parameters[:, 1].max(),
             stellar_parameters[:, 2].min(), stellar_parameters[:, 2].max()))
 
+    # Any scaling for solar abundances?
+    if X_H:
+        solar_abundances = photospheres.solar_abundance(transitions["species"])
+    else:
+        solar_abundances = 0.
+    
     for i, sp in enumerate(stellar_parameters):
         logger.debug("At star {0}: {1}".format(i, sp))
         for j, ew in enumerate(ew_points):
             # Update transition table with equivalent_widths before passing to
             # the radiative transfer code.
             transitions["equivalent_width"] = ew
-            abundances[i, :, j] = oracle.synthesis.moog.atomic_abundances(
+            abundances[i, :, j] = synthesis.moog.atomic_abundances(
                 transitions, sp[:3], sp[3],
-                photosphere_kwargs=photosphere_kwargs, **synthesis_kwargs)
+                photosphere_kwargs=photosphere_kwargs, **synthesis_kwargs) \
+                - solar_abundances
+                
 
     # Calculate array of corresponding equivalent widths for each abundance.
     ews = np.tile(ew_points, N_stars * N_transitions).reshape(N_stars,
@@ -235,6 +271,36 @@ def _atomic_line_abundances(stellar_parameters, transitions, ew_points=None,
     return (ews, abundances)
 
 
+
+
+def _abundance_predictors(ew, wavelength, stellar_parameters):
+    teff, logg, fe_h = stellar_parameters[:3]
+
+    return np.array([1,
+        np.log(ew/wavelength),
+        np.log(ew/wavelength)**2,
+        np.log(ew/wavelength)**3,
+        np.log(teff),
+        np.log(teff)**2,
+        np.log(teff)**3,
+        np.log(teff) * logg,
+        np.log(teff) * fe_h,
+        logg * fe_h,
+        fe_h,
+        logg,
+        xi_relation(teff, logg),
+        0,
+        0,
+    ])
+
+
+def _solve_equivalent_width(abundance, coeffs, wavelength, stellar_parameters,
+    tol=1.48e-08, maxiter=500):
+
+    f = lambda ew: (abundance - \
+        np.dot(_abundance_predictors(ew, wavelength, stellar_parameters), coeffs))**2
+
+    return op.brent(f, brack=[0, 300], tol=tol, maxiter=maxiter)
 
 def _approximate_radiative_transfer(transition, stellar_parameters, ews,
     abundances):
@@ -246,9 +312,9 @@ def _approximate_radiative_transfer(transition, stellar_parameters, ews,
         return np.dot([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o], x)
 
     N = 15
-    S, T, E = abundances.shape
+    S, E = abundances.shape
 
-    _x_sp = lambda sps, N=None: np.repeat(sps, T * E).reshape(-1, T, E)[:, N, :]
+    _x_sp = lambda sps, N=None: np.repeat(sps, E).reshape(-1, E)
 
     # Prepare the x and y data.
     y = abundances.flatten()
@@ -257,15 +323,15 @@ def _approximate_radiative_transfer(transition, stellar_parameters, ews,
     x[1] = np.log(ews/transition["wavelength"])
     x[2] = np.log(ews/transition["wavelength"])**2
     x[3] = np.log(ews/transition["wavelength"])**3
-    x[4] = _x_sp(np.log(stellar_parameters[:, 0]), i)
-    x[5] = _x_sp(np.log(stellar_parameters[:, 0]), i)**2
-    x[6] = _x_sp(np.log(stellar_parameters[:, 0]), i)**3
-    x[7] = _x_sp(np.log(stellar_parameters[:, 0]) * stellar_parameters[:, 1], i)
-    x[8] = _x_sp(np.log(stellar_parameters[:, 0]) * stellar_parameters[:, 2], i)
-    x[9] = _x_sp(stellar_parameters[:, 1] * stellar_parameters[:, 2], i)
-    x[10] = _x_sp(stellar_parameters[:, 2], i)
-    x[11] = _x_sp(stellar_parameters[:, 1], i)
-    x[12] = _x_sp(xi_relation(*stellar_parameters[:, :2].T), i)
+    x[4] = _x_sp(np.log(stellar_parameters[:, 0]))
+    x[5] = _x_sp(np.log(stellar_parameters[:, 0]))**2
+    x[6] = _x_sp(np.log(stellar_parameters[:, 0]))**3
+    x[7] = _x_sp(np.log(stellar_parameters[:, 0]) * stellar_parameters[:, 1])
+    x[8] = _x_sp(np.log(stellar_parameters[:, 0]) * stellar_parameters[:, 2])
+    x[9] = _x_sp(stellar_parameters[:, 1] * stellar_parameters[:, 2])
+    x[10] = _x_sp(stellar_parameters[:, 2])
+    x[11] = _x_sp(stellar_parameters[:, 1])
+    x[12] = _x_sp(xi_relation(*stellar_parameters[:, :2].T))
 
     x = x.reshape(x.shape[0], -1)
     ok = ((x[1] < -4.5) * (ews.flatten() > 1)).flatten()  
