@@ -5,7 +5,10 @@
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
+import logging
 import sys
+
+logger = logging.getLogger("explosives")
 
 def progressbar(iterable, message=None, size=100):
     """
@@ -44,7 +47,7 @@ def progressbar(iterable, message=None, size=100):
 
     # Initialise
     if size > 0:
-        sys.stdout.write("\r{}\n".format(message or ""))
+        logger.info((message or "").rstrip())
         sys.stdout.flush()
 
     for i, item in enumerate(iterable):
