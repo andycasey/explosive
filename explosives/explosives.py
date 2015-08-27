@@ -10,12 +10,15 @@ import logging
 import numpy as np
 
 import scipy.optimize as op
-from . import (model, cannon, plot, utils)
+from . import (atomic, cannon, model, plot, utils)
 
 logger = logging.getLogger("explosives")
 
 
 class ExplosivesModel(cannon.CannonModel):
+
+    _save_attributes = ("_coefficients", "_scatter", "_offsets", "_ew_model")
+    _data_attributes = ("_wavelengths", "_fluxes", "_flux_uncertainties")
 
     def __init__(self, labels, wavelengths, fluxes, flux_uncertainties,
         verify=True):
@@ -54,8 +57,8 @@ class ExplosivesModel(cannon.CannonModel):
             flux_uncertainties, verify)
 
 
-    def train(self, label_vector_description, atomic_lines=None, N=None,
-        limits=None, pivot=False, **kwargs):
+    def train(self, label_vector_description, atomic_lines=None, X_H=False,
+        N=None, limits=None, pivot=False, **kwargs):
         """
         Train a Cannon model based on the label vector description provided.
 
@@ -75,6 +78,13 @@ class ExplosivesModel(cannon.CannonModel):
 
         :type atomic_lines:
             dict
+
+        :param X_H: [optional]
+            Use abundances in X_H format. If set to `False`, then log(X)
+            abundance formats are assumed.
+
+        :type X_H:
+            bool
 
         :param N: [optional]
             Limit the number of stars used in the training set. If left to None,
@@ -116,23 +126,83 @@ class ExplosivesModel(cannon.CannonModel):
         lva, use, offsets = cannon._build_label_vector_array(self._labels, lv,
             N, limits, pivot)
 
+        # Initialise the requisite arrays.
+        N_stars, N_pixels = self._fluxes.shape[:2]
+        scatter = np.nan * np.ones(N_pixels)
+        coefficients = np.nan * np.ones((N_pixels, lva.shape[0]))
+        weak_line_fluxes = np.ones((N_stars, N_pixels))
+        
         # Any atomic lines to model?
-        p_sigma = -1
-        valid_atomic_lines = _check_atomic_lines(self._labels, atomic_lines)
-        if valid_atomic_lines:
+        if _check_atomic_lines(self._labels, atomic_lines):
+
+            N_species = len(atomic_lines)
+            N_transitions = sum(map(len, atomic_lines.values()))
+            logger.info("Including {0} weak lines from {1} elements: {2}".format(
+                N_transitions, N_species, ", ".join(atomic_lines.keys())))
 
             # Build the log(X)->EW models (or vice-versa, sigh)
 
             # Estimate the FWHM kernel for each star, or estimate from all stars
             # (We need the FWHM to link the EW to an actual flux value.)
-            p_sigma = 0.45
+            p_sigma = 0.35
 
-        
-        # Initialise the requisite arrays.
-        N_stars, N_pixels = self._fluxes.shape[:2]
-        scatter = np.nan * np.ones(N_pixels)
-        coefficients = np.nan * np.ones((N_pixels, lva.shape[0]))
-        
+            # We should calculate the expected EWs (and therefore fluxes) for
+            # each atomic line for each star in the training set, because this
+            # will form the first element of our label vector array.
+
+            teff_label = kwargs.pop("__label_teff", "TEFF")
+            logg_label = kwargs.pop("__label_logg", "LOGG")
+            fe_h_label = kwargs.pop("__label_fe_h", "FE_H")
+            all_stellar_parameters = np.vstack([
+                self._labels[teff_label],
+                self._labels[logg_label],
+                self._labels[fe_h_label]
+            ]).T
+
+            # [TODO] This part is unnecessarily slow. Speed it up.
+            # [TODO] It's also probably catagorically wrong.
+            ew_model = {}
+            for label, transitions in atomic_lines.items():
+                ew_coefficients = atomic.approximate_atomic_transitions(
+                    all_stellar_parameters, transitions, X_H=X_H, **kwargs)
+                ew_model[label] = (np.array(transitions["wavelength"]), ew_coefficients)
+
+            # Generate the weak line fluxes for each star.
+            for i, stellar_parameters in enumerate(all_stellar_parameters):
+                for label, (wavelengths, ew_coefficients) in ew_model.items():
+
+                    abundance = self._labels[label][i]
+                    for j, mu in enumerate(wavelengths):
+                        # The 10e-4 factor is to turn the EW from milliAngstroms
+                        # into Angstroms.
+                        expected_ew = atomic._solve_equivalent_width(abundance,
+                            ew_coefficients[j], mu, stellar_parameters) * 10e-4
+
+                        # Translate this into a weak profile.
+                        # EW = sqrt(2*pi) * amplitude * sigma
+                        # we know the central wavelength, we know the sigma
+                        # (EW is in mA, and we want A)
+                        amplitude = expected_ew/(np.sqrt(2*np.pi) * p_sigma)
+                        weak_line_fluxes[i] *= 1. \
+                            - amplitude * np.exp(-(self._wavelengths - mu)**2 \
+                                / (2. * p_sigma**2))
+                    
+
+            import matplotlib.pyplot as plt
+            plt.close("all")
+
+            fig, ax = plt.subplots()
+            ax.plot(self._wavelengths, weak_line_fluxes[0], c='b', zorder=100)
+            ax.plot(self._wavelengths, self._fluxes[0], c='k')
+
+            ax.plot(self._wavelengths, self._fluxes[0] / weak_line_fluxes[0], c='r', zorder=1000)
+            #raise a
+
+        else:
+            ew_model = None
+
+
+        assert N is None, "whoops?"
         pb_size = 100 if kwargs.pop("__progressbar", True) else 0
         pb_message = "Training {0} model from {1} stars with {2} pixels:\n"\
             .format(self.__class__.__name__[:-5], N_stars, N_pixels)
@@ -140,38 +210,23 @@ class ExplosivesModel(cannon.CannonModel):
 
             # Update the first element of the label vector array to include the
             # predicted EWs.
-            if valid_atomic_lines:
-                # We have a bunch of atomic transitions, the stellar parameters
-                # and atomic abundances of all stars.
-                raise NotImplementedError
+            fluxes = self._fluxes[use, i] / weak_line_fluxes[use, i]
 
-                # Find out which atomic lines are 'nearby' to this pixel/lambda
-
-                # For each of those lines, calculate the EW that should be seen
-                # in each star, given the stellar parameters and abundance of
-                # that line.
-                
-                # Translate the EW to a flux value at this exact pixel/lambda
-
-                # The total depth is taken as 1 - product(d) of all lines.
-
-                # Update the first element of the label vector array for all
-                # stars.
-
-                
-            raise a
-
-            coefficients[i, :], scatter[i] = cannon._fit_pixel(
-                self._fluxes[use, i], self._flux_uncertainties[use, i], lva,
-                **kwargs)
+            # Train the Cannon on the residuals of the data.
+            # I *think* this is OK to do
+            # (e.g., Hogg may be wrong??? -- famous last words?)
+            coefficients[i, :], scatter[i] = cannon._fit_pixel(fluxes,
+                self._flux_uncertainties[use, i], lva, **kwargs)
 
             if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
                 logger.warn("No finite coefficients at pixel {}!".format(i))
 
-        self._coefficients, self._scatter, self._offsets, self._trained \
-            = coefficients, scatter, offsets, True
-
-        return (coefficients, scatter, offsets)
+        # Save all of these to the model.
+        self._trained = True
+        self._coefficients, self._scatter = coefficients, scatter
+        self._offsets, self._ew_model = offsets, ew_model
+        
+        return (coefficients, scatter, offsets, ew_model)
 
 
     @model.requires_training_wheels
@@ -303,141 +358,6 @@ class ExplosivesModel(cannon.CannonModel):
         if full_output:
             return (labels, covariance)
         return labels
-
-
-    def _repr_label_vector_description(self, label_vector_indices, **kwargs):
-        """
-        Represent label vector indices as a readable label vector description.
-
-        :param label_vector_indices:
-            A list of label vector indices. Each item in the list is expected to
-            be a tuple of cross-terms (each in a list).
-
-        :returns:
-            A human-readable string of the label vector description.
-        """
-
-        return super(self.__class__, self)._repr_label_vector_description(
-            label_vector_indices, __first_vector_desc="g(theta)")
-
-
-    @property
-    def _trained_hash(self):
-        """
-        Return a hash of the trained state.
-        """
-
-        if not self._trained: return None
-        args = (self._coefficients, self._scatter, self._offsets,
-            self._label_vector_description, self._atomic_lines)
-        return "".join([str(hash(str(each)))[:10] for each in args])
-
-
-    @model.requires_training_wheels
-    def save(self, filename, with_data=False, overwrite=False, verify=True):
-        """
-        Save the (trained) model to disk. This will save the label vector
-        description, the optimised coefficients and scatter, and pivot offsets.
-
-        :param filename:
-            The file path where to save the model to.
-
-        :type filename:
-            str
-
-        :param with_data: [optional]
-            Save the wavelengths, fluxes and flux uncertainties used to train
-            the model.
-
-        :type with_data:
-            bool
-
-        :param overwrite: [optional]
-            Overwrite the existing file path, if it already exists.
-
-        :type overwrite:
-            bool
-
-        :returns:
-            True
-
-        :raise TypeError:
-            If the model has not been trained, since there is nothing to save.
-        """
-
-        # Create a hash of the labels, fluxes and flux uncertainties.
-        if verify:
-            hashes = [hash(str(_)) for _ in \
-                (self._labels, self._fluxes, self._flux_uncertainties)]
-        else:
-            hashes = None
-
-        contents = \
-            [self._label_vector_description, self._coefficients, self._scatter,
-                self._offsets, self._atomic_lines, hashes]
-        if with_data:
-            contents.extend(
-                [self._wavelengths, self._fluxes, self._flux_uncertainties])
-
-        with open(filename, "w") as fp:
-            pickle.dump(contents, fp, -1)
-
-        return True
-
-
-    def load(self, filename, verify=True):
-        """
-        Load a trained model from disk.
-
-        :param filename:
-            The file path where to load the model from.
-
-        :type filename:
-            str
-
-        :param verify: [optional]
-            Verify whether the hashes in the stored filename match what is
-            expected from the label, flux and flux uncertainty arrays.
-
-        :type verify:
-            bool
-
-        :returns:
-            True
-
-        :raises IOError:
-            If the model could not be loaded.
-
-        :raises ValueError:
-            If the current hash of the labels, fluxes, or flux uncertainties is
-            different than what was stored in the filename. Disable this option
-            (at your own risk) by setting `verify` to False.
-        """
-
-        with open(filename, "r") as fp:
-            contents = pickle.load(fp)
-
-        hashes = contents[-1]
-        if verify and hashes is not None:
-            exp_hash = [hash(str(_)) for _ in \
-                (self._labels, self._fluxes, self._flux_uncertainties)]
-            descriptions = ("labels", "fluxes", "flux_uncertainties")
-            for e_hash, r_hash, descr in zip(exp_hash, hashes, descriptions):
-                if e_hash != r_hash:
-                    raise ValueError("expected hash for {0} ({1}) is different "
-                        "to that stored in {2} ({3})".format(descr, e_hash,
-                            filename, r_hash)) 
-
-        if len(contents) > 6:
-            self._label_vector_description, self._coefficients, self._scatter, \
-                self._offsets, self._atomic_lines, hashes, self._wavelengths, \
-                self._fluxes, self._flux_uncertainties = contents
-        else:
-            self._label_vector_description, self._coefficients, self._scatter, \
-                self._offsets, self._atomic_lines, hashes = contents
-        self._trained = True
-
-        return True
 
 
     @model.requires_training_wheels
