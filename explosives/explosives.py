@@ -7,6 +7,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
 import numpy as np
+from collections import OrderedDict
 
 import scipy.optimize as op
 from . import (atomic, cannon, model, plot, utils)
@@ -16,7 +17,8 @@ logger = logging.getLogger("explosives")
 
 class ExplosivesModel(cannon.CannonModel):
 
-    _save_attributes = ("_coefficients", "_scatter", "_offsets", "_ew_model")
+    _trained_attributes = ("_coefficients", "_scatter", "_offsets", "_ew_model",
+        "_weak_line_mask", "_label_vector_description", "_atomic_lines")
     _data_attributes = ("_labels", "_wavelengths", "_fluxes",
         "_flux_uncertainties")
 
@@ -55,6 +57,22 @@ class ExplosivesModel(cannon.CannonModel):
 
         super(self.__class__, self).__init__(labels, wavelengths, fluxes,
             flux_uncertainties, verify)
+
+
+    @property
+    @model.requires_training_wheels
+    def labels(self):
+        """
+        Return a list of the labels involved in this model. This includes any
+        labels in the description of the label vector, as well as any individual
+        abundance labels.
+        """
+
+        _, labels = self._get_linear_indices(self._label_vector_description,
+            full_output=True)
+        if self._atomic_lines is not None:
+            labels += self._atomic_lines.keys()
+        return labels
 
 
     def train(self, label_vector_description, atomic_lines=None, X_H=False,
@@ -111,8 +129,9 @@ class ExplosivesModel(cannon.CannonModel):
             in each pixel, and the label offsets.
         """
 
-        # We'll need this later; store it.
-        self._atomic_lines = atomic_lines
+        # We'll need this later; store it. First sort by the species number.
+        self._atomic_lines = OrderedDict(sorted(atomic_lines.items(), 
+            key=lambda _: min(_[1]["species"])))
         self._label_vector_description = label_vector_description
 
         # Build the label vector array. Note that if `atomic_lines` are given,
@@ -133,13 +152,13 @@ class ExplosivesModel(cannon.CannonModel):
         weak_line_fluxes = np.ones((N_stars, N_pixels))
         
         # Any atomic lines to model?
-        if _check_atomic_lines(self._labels, atomic_lines):
+        if _check_atomic_lines(self._labels, self._atomic_lines):
 
-            N_species = len(atomic_lines)
-            N_transitions = sum(map(len, atomic_lines.values()))
+            N_species = len(self._atomic_lines)
+            N_transitions = sum(map(len, self._atomic_lines.values()))
 
             msg = []
-            for k, v in atomic_lines.items():
+            for k, v in self._atomic_lines.items():
                 msg.append("{0} (species {1}; {2} lines)".format(
                     k, ", ".join(map(str, set(v["species"]))), len(v)))
 
@@ -170,7 +189,7 @@ class ExplosivesModel(cannon.CannonModel):
             # [TODO] This part is unnecessarily slow. Speed it up.
             # [TODO] It's also probably catagorically wrong.
             ew_model = {}
-            for label, transitions in atomic_lines.items():
+            for label, transitions in self._atomic_lines.items():
                 ew_coefficients = atomic.approximate_atomic_transitions(
                     all_stellar_parameters, transitions, X_H=X_H, **kwargs)
                 ew_model[label] = (np.array(transitions["wavelength"]), ew_coefficients)
@@ -233,8 +252,11 @@ class ExplosivesModel(cannon.CannonModel):
         self._trained = True
         self._coefficients, self._scatter = coefficients, scatter
         self._offsets, self._ew_model = offsets, ew_model
+        # Keep a record of pixels that are not affected by weak line fluxes at
+        # all. These can be used for the initial guess of stellar parameters.
+        self._weak_line_mask = np.all(weak_line_fluxes == 1, axis=0)
 
-        return (coefficients, scatter, offsets, ew_model)
+        return (coefficients, scatter, offsets, ew_model, weak_line_fluxes)
 
 
     @model.requires_training_wheels
@@ -310,16 +332,17 @@ class ExplosivesModel(cannon.CannonModel):
         :raises TypeError:
             If the model is not trained.
         """
-        raise NotImplementedError
-
+        
         # Get an initial estimate of those parameters from a simple inversion.
         # (This is very much incorrect for non-linear terms).
-        finite = np.isfinite(self._coefficients[:, 0]*flux *flux_uncertainties)
-        Cinv = 1.0 / (self._scatter[finite]**2 + flux_uncertainties[finite]**2)
-        A = np.dot(self._coefficients[finite, :].T,
-            Cinv[:, None] * self._coefficients[finite, :])
-        B = np.dot(self._coefficients[finite, :].T,
-            Cinv * flux[finite])
+        finite = \
+            np.isfinite(self._coefficients[:, 0] * flux * flux_uncertainties)
+        p0mask = finite #self._weak_line_mask * finite
+        Cinv = 1.0 / (self._scatter[p0mask]**2 + flux_uncertainties[p0mask]**2)
+        A = np.dot(self._coefficients[p0mask, :].T,
+            Cinv[:, None] * self._coefficients[p0mask, :])
+        B = np.dot(self._coefficients[p0mask, :].T,
+            Cinv * flux[p0mask])
         initial_vector_p0 = np.linalg.solve(A, B)
 
         # p0 contains all coefficients, but we only want the linear terms to
@@ -331,9 +354,8 @@ class ExplosivesModel(cannon.CannonModel):
 
         # Get the initial guess of just the linear parameters.
         # (Here we make a + 1 adjustment for the first '1' term)
-        p0 = initial_vector_p0[indices + 1]
-
-        logger.debug("Initial guess: {0}".format(dict(zip(names, p0))))
+        parameters, p0 = list(names), initial_vector_p0[indices + 1]
+        logger.debug("Initial guess: {0}".format(dict(zip(parameters, p0))))
 
         # Now we need to build up label vector rows by indexing relative to the
         # labels that we will actually be solving for (in this case it's the
@@ -343,29 +365,82 @@ class ExplosivesModel(cannon.CannonModel):
             self._label_vector_description, return_indices=True,
             __columns=names)
 
+        # Do we have individual line abundances to consider?
+        if self._atomic_lines is not None:
+            # Need to extend p0 to include individual abundances.
+            parameters.extend(self._atomic_lines.keys())
+
+            # Just take the median of the abundances, that should be OK for an
+            # initial guess (at any stellar parameters).
+
+            # [TODO] In the future we may just guess this at M_H, but need to
+            # be sure we are dealing with M_H and not log_X, or shift by solar.
+            p0 = np.hstack([p0, [np.nanmedian(self._labels[p]) \
+                for p in self._atomic_lines.keys()]])
+
+
+        logger.warn("NO EXPLICIT REFERENCES TO STELLAR PARAMETER NAMES")
+
+        # [TODO] Hacky as shhit
+        self._tmp_mask = finite
+
         # Create the function.
         def f(coefficients, *labels):
-            return np.dot(coefficients, cannon._build_label_vector_rows(
-                label_vector_indices, labels).T).flatten()
+            # Build the weak lines spectrum.
+
+            stellar_parameters = labels[:3]
+            # [TODO] No explicit reference to stellar parameter labels  
+
+            weak_line_fluxes = np.ones(flux.size)
+            N = len(self._atomic_lines) if self._atomic_lines is not None else 0
+            for i, (label, abundance) \
+            in enumerate(zip(self._ew_model.keys(), labels[-N:])):
+
+                wavelengths, ew_coefficients = self._ew_model[label]
+
+                for j, mu in enumerate(wavelengths):
+                    # The 10e-4 factor is to turn the EW from milliAngstroms
+                    # into Angstroms.
+                    expected_ew = atomic._solve_equivalent_width(abundance,
+                        ew_coefficients[j], mu, stellar_parameters) * 10e-4
+
+                    p_sigma = 0.35
+
+                    # Translate this into a weak profile.
+                    # EW = sqrt(2*pi) * amplitude * sigma
+                    # we know the central wavelength, we know the sigma
+                    # (EW is in mA, and we want A)
+                    amplitude = expected_ew/(np.sqrt(2*np.pi) * p_sigma)
+                    weak_line_fluxes *= 1. \
+                        - amplitude * np.exp(-(self._wavelengths - mu)**2 \
+                            / (2. * p_sigma**2))
+
+            return weak_line_fluxes[self._tmp_mask] *  np.dot(coefficients, cannon._build_label_vector_rows(
+                label_vector_indices, labels[:-N]).T).flatten()
+
 
         # Optimise the curve to solve for the parameters and covariance.
         full_output = kwargs.pop("full_output", False)
         kwds = kwargs.copy()
         kwds.setdefault("maxfev", 10000)
-        labels, covariance = op.curve_fit(f, self._coefficients[finite],
+
+        p_opt, p_covariance = op.curve_fit(f, self._coefficients[finite],
             flux[finite], p0=p0, sigma=1.0/np.sqrt(Cinv), absolute_sigma=True,
             **kwds)
+
+        del self._tmp_mask
+        
 
         # We might have solved for any number of parameters, so we return a
         # dictionary.
         logger.debug("TODO: apply offsets as required")
-        labels = dict(zip(names, labels))
+        p_opt = dict(zip(parameters, p_opt))
 
-        logger.debug("Final solution: {0}".format(labels))
+        logger.debug("Final solution: {0}".format(p_opt))
 
         if full_output:
-            return (labels, covariance)
-        return labels
+            return (p_opt, p_covariance)
+        return p_opt
 
 
     @model.requires_training_wheels
@@ -391,7 +466,6 @@ class ExplosivesModel(cannon.CannonModel):
             A figure showing the flux residuals.
         """
         return plot.flux_residuals(self, parameter, percentile, **kwargs)
-
 
 
 def _check_atomic_lines(labels, atomic_lines):

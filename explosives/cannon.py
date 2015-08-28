@@ -254,6 +254,18 @@ class CannonModel(model.BaseModel):
 
     @property
     @model.requires_training_wheels
+    def labels(self):
+        """
+        Return a list of the labels involved in this model.
+        """
+
+        _, labels = self._get_linear_indices(self._label_vector_description,
+            full_output=True)
+        return list(labels)
+
+
+    @property
+    @model.requires_training_wheels
     def label_residuals(self):
         """
         Calculate the residuals of the inferred labels using the trained model.
@@ -274,21 +286,20 @@ class CannonModel(model.BaseModel):
         except AttributeError:
             None
 
-        label_indices, label_names = self._get_linear_indices(
-            self._label_vector_description, full_output=True)
-        expected_labels = np.zeros((self._fluxes.shape[0], len(label_names)))
-        inferred_labels = np.zeros((self._fluxes.shape[0], len(label_names)))
+        labels = self.labels
+        expected_labels = np.zeros((self._fluxes.shape[0], len(labels)))
+        inferred_labels = np.zeros((self._fluxes.shape[0], len(labels)))
 
         for i, (flux, uncertainty) \
         in enumerate(zip(self._fluxes, self._flux_uncertainties)):
             inferred = self.solve_labels(flux, uncertainty)
-            for j, label_name in enumerate(label_names):
+            for j, label_name in enumerate(labels):
                 expected_labels[i, j] = self._labels[label_name][i]
                 inferred_labels[i, j] = inferred[label_name]
 
         # Cache for future, unless the training state changes.
         self._residuals_hash = self._trained_hash
-        self._residuals_cache = (label_names, expected_labels, inferred_labels)
+        self._residuals_cache = (labels, expected_labels, inferred_labels)
         return self._residuals_cache
 
 
@@ -386,8 +397,8 @@ class CannonModel(model.BaseModel):
             if len(term) == 1 and term[0][1] == 1:
                 names.append(term[0][0])
                 indices.append(i)
-        names, indices = tuple(names), np.array(indices)
-
+        indices = np.array(indices)
+        
         if full_output:
             return (indices, names)
         return indices

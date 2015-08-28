@@ -9,7 +9,6 @@ import cPickle as pickle
 import numpy as np
 import os
 
-
 def requires_training_wheels(f):
     """
     A decorator for model functions where the model needs training first.
@@ -158,6 +157,12 @@ class BaseModel(object):
                         " label '{1}' - to ignore this use verify=False".format(
                             character, column))
         return True
+
+
+    @property
+    def labels(self):
+        """ This should be overwritten by the parent model. """
+        raise WTFError("is this your first day?")
 
 
     @property
@@ -338,3 +343,5 @@ class BaseModel(object):
 
         model._trained = True
         return model
+
+
