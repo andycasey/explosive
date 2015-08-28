@@ -266,9 +266,10 @@ class FireworksModel(cannon.CannonModel):
 
         :param labels:
             The labels required for the trained model. This should be a N-length
-            list matching the number of unique terms in the model, in the order
-            given by the `self._get_linear_indices` function. Alternatively,
-            labels can be explicitly given as keyword arguments.
+            list matching the number of unique terms in the model, including any
+            atomic (weak) line abundances in the order given by the `self.labels`
+            property. Alternatively, labels can be explicitly given as keyword
+            arguments.
 
         :type labels:
             list
@@ -279,31 +280,64 @@ class FireworksModel(cannon.CannonModel):
         :raises TypeError:
             If the model is not trained.
         """
-        raise NotImplementedError
         
         try:
             labels[0]
         except (TypeError, IndexError):
             labels = [labels]
 
-        indices, names = self._get_linear_indices(
-            self._label_vector_description, full_output=True)
+        label_names = self.labels
         if labels is None:
             # Must be given as keyword arguments.
-            labels = [labels_as_kwargs[name] for name in names]
+            labels = [labels_as_kwargs[name] for name in label_names]
 
         else:
-            if len(labels) != len(names):
+            if len(labels) != len(label_names):
                 raise ValueError("expected number of labels is {0}, and {1} "
-                    "were given: {2}".format(len(names), len(labels),
-                        ", ".join(names)))
+                    "were given: {2}".format(len(label_names), len(labels),
+                        ", ".join(label_names)))
 
+        # Generate the Cannon-ical flux.
         label_vector_indices = self._parse_label_vector_description(
             self._label_vector_description, return_indices=True,
-            __columns=names)
+            __columns=label_names)
 
-        return np.dot(self._coefficients, cannon._build_label_vector_rows(
+        fluxes = np.dot(self._coefficients, cannon._build_label_vector_rows(
             label_vector_indices, labels).T).flatten()
+
+        # Include treatment of any atomic lines.
+        if self._atomic_lines is not None:
+
+            N = len(self._atomic_lines)
+            stellar_parameters = labels[:3]
+            logger.warn("No explicit reference to stellar parameters")
+            # [TODO] No explicit reference to stellar parameter labels  
+
+            weak_line_fluxes = np.ones(cannonical_flux.size)
+            for i, (label, abundance) \
+            in enumerate(zip(self._ew_model.keys(), labels[-N:])):
+
+                wavelengths, ew_coefficients = self._ew_model[label]
+
+                for j, mu in enumerate(wavelengths):
+                    # The 10e-4 factor is to turn the EW from milliAngstroms
+                    # into Angstroms.
+                    expected_ew = atomic._solve_equivalent_width(abundance,
+                        ew_coefficients[j], mu, stellar_parameters) * 10e-4
+
+                    p_sigma = 0.35
+
+                    # Translate this into a weak profile.
+                    # EW = sqrt(2*pi) * amplitude * sigma
+                    # we know the central wavelength, we know the sigma
+                    # (EW is in mA, and we want A)
+                    amplitude = expected_ew/(np.sqrt(2*np.pi) * p_sigma)
+                    weak_line_fluxes *= 1. \
+                        - amplitude * np.exp(-(self._wavelengths - mu)**2 \
+                            / (2. * p_sigma**2))
+
+            fluxes *= weak_line_fluxes
+        return fluxes
 
 
     @model.requires_training_wheels
