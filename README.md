@@ -1,6 +1,6 @@
-Explosives
+Fireworks
 ==========
-[![Build Status](https://travis-ci.org/andycasey/explosive.svg?branch=master)](https://travis-ci.org/andycasey/explosive)
+[![Build Status](https://travis-ci.org/andycasey/fireworks.svg?branch=master)](https://travis-ci.org/andycasey/fireworks)
 
 Detailed chemical abundances using (an extension of) [The Cannon](http://adsabs.harvard.edu/abs/2015ApJ...808...16N).
 

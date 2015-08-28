@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Explosives sandbox. """
+""" fireworks sandbox. """
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import numpy as np
 from astropy.table import Table
-from explosives import explosives
+from fireworks import fireworks
 
 DATA_PREFIX = "/Users/arc/research/luminosity-cannon/data/APOGEE-Hipparcos"
 stars = Table.read("{}.fits.gz".format(DATA_PREFIX))
@@ -73,7 +73,7 @@ stellar_parameters = np.vstack([stars["TEFF"], stars["LOGG"],
 #atomic.approximate_atomic_transitions(stellar_parameters, transitions)
 
 
-# Create ExplosivesModel
+# Create FireworksModel
 fluxes = np.memmap("{}-flux.memmap".format(DATA_PREFIX), mode="r", dtype=float)
 flux_uncertainties = np.memmap("{}-flux-uncertainties.memmap".format(DATA_PREFIX),
     mode="r", dtype=float)
@@ -89,12 +89,12 @@ atomic_lines = {
 label_vector_description = "TEFF^4 TEFF^3 TEFF^2 TEFF LOGG LOGG^2 TEFF*LOGG TEFF^2*LOGG TEFF*LOGG^2 PARAM_M_H PARAM_M_H*TEFF PARAM_M_H*TEFF^2 PARAM_ALPHA_M PARAM_M_H*PARAM_ALPHA_M" 
 
 if False:
-    m = explosives.ExplosivesModel(stars, wavelengths, fluxes, flux_uncertainties)
+    m = fireworks.FireworksModel(stars, wavelengths, fluxes, flux_uncertainties)
     stuff = m.train(label_vector_description, atomic_lines, X_H=True)
     m.save("temp.pkl", with_data=True, overwrite=True)
 
 else:
-    m = explosives.ExplosivesModel.from_filename("temp.pkl")
+    m = fireworks.FireworksModel.from_filename("temp.pkl")
 
 label_names, expected_labels, inferred_labels = m.label_residuals
 raise a

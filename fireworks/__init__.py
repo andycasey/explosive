@@ -10,11 +10,8 @@ import logging
 from numpy import RankWarning
 from warnings import simplefilter
 
-logger = logging.getLogger("explosives")
+logger = logging.getLogger("fireworks")
 logger.setLevel(logging.INFO)
-
-#logging.basicConfig(level=logging.INFO, 
-#    format="%(asctime)s [%(levelname)s] %(message)s")
 
 simplefilter("ignore", RankWarning)
 simplefilter("ignore", RuntimeWarning)

@@ -12,10 +12,10 @@ from collections import OrderedDict
 import scipy.optimize as op
 from . import (atomic, cannon, model, plot, utils)
 
-logger = logging.getLogger("explosives")
+logger = logging.getLogger("fireworks")
 
 
-class ExplosivesModel(cannon.CannonModel):
+class FireworksModel(cannon.CannonModel):
 
     _trained_attributes = ("_coefficients", "_scatter", "_offsets", "_ew_model",
         "_weak_line_mask", "_label_vector_description", "_atomic_lines")

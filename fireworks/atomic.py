@@ -11,7 +11,7 @@ import scipy.optimize as op
 
 from oracle import photospheres, synthesis
 
-logger = logging.getLogger("explosives")
+logger = logging.getLogger("fireworks")
 
 
 def approximate_atomic_transitions(stellar_parameters, transitions, X_H=False,

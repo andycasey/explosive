@@ -8,7 +8,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 import logging
 import sys
 
-logger = logging.getLogger("explosives")
+logger = logging.getLogger("fireworks")
 
 def progressbar(iterable, message=None, size=100):
     """
