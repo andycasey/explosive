@@ -1,11 +1,15 @@
 \documentclass[useAMS,usenatbib]{mn2e}
 
+\usepackage{amsmath,amsbsy}
+
 % Convenient colloquiualisms.
+\newcommand\article{\textit Article}
 \newcommand\tc{\textit{The Cannon}}
 
 % Convenient maths.
-\newcommand\lv{\mathbf{l_n}}
-\newcommand\cv{{\mathbf \theta}_\lambda}
+\newcommand\K{$\mathbf{K}$}
+\newcommand\lv{\bf{\boldsymbol\ell_n}}
+\newcommand\cv{{\boldsymbol\theta}_\lambda}
 \newcommand\given{|}
 
 \title[Cannon Chemistry]{Detailed Chemical Abundances with \tc} 
@@ -82,12 +86,17 @@ is that the flux for any pixel from any star is predictable with a very simple
 model (generally a polynomial), given the labels. Indeed, \citet{Ness2015}
 employ a quadratic-in-labels (see their Equation 8) spectral model using stellar
 parameters (effective temperature $T_{\rm eff}$, surface gravity $\log{g}$, and 
-metallicity [M/H]) and demonstrate by cross-validation that these labels can be 
+metallicity [M/H]\footnote{\citet{Ness2015} use [Fe/H] in $\lv$, but for the 
+sake of distinguishing between overall metallicity and individual abundances,
+we opt for [M/H] to describe overall metallicity throughout this \article{}})
+and demonstrate by cross-validation that these labels can be 
 measured with a precision of 95~K in $T_{\rm eff}$, 0.24 in $\log{g}$, 0.08 in 
-[M/H], with negligible biases.
+[M/H], with negligible biases. It is important to note that these uncertainties
+are comparable to those reported by \textit{curve-of-growth} techniques, which
+rely on a model atmosphere and the changing strength of atomic absorption lines.
 
-Utilising a simple polynomial model to predict spectral fluxes is in stark
-contrast to parallel efforts in radiative transfer of realistic (3D) stellar 
+Utilising a simple polynomial model to predict spectral fluxes is a distinctive
+method from parallel efforts in radiative transfer of realistic (3D) stellar 
 photospheres. Calculations of this nature are extremely expensive. Indeed, even
 with simplications of these models (e.g., interpolated 1D photospheres),
 calculating integrated flux requires knowledge of species opacities, detailed 
@@ -128,9 +137,10 @@ Castle by the Max-Planck-Institut F\"ur Astronomie. This research made use of
 Astropy, a community-developed core Python package for Astronomy \citep{astropy}.
 
 \begin{thebibliography}{99}
-%\bibitem[\protect\citeauthoryear{Baird}{1981}]{b1} Baird S.R., 1981,
-%ApJ, 245, 208
 \bibitem[Astropy Collaboration et al.(2013)]{astropy} Astropy Collaboration, Robitaille, T.~P., Tollerud, E.~J., et al.\ 2013, \aap, 558, AA33
+
+\bibitem[Ness et al.(2015)]{Ness2015} Ness, M., Hogg, D.~W., 
+Rix, H.-W., Ho, A.~Y.~Q., \& Zasowski, G.\ 2015, \apj, 808, 16 
 \end{thebibliography}
 
 
