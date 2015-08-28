@@ -36,29 +36,26 @@ $^4$Center for Data Science, New York University, 726 Broadway, 7th Floor,
 \label{firstpage}
 
 \begin{abstract}
-% large surveys spectroscopically planned.
-% poses computing challenge.
-% commonalityies between them: all R ~ 20,000, trying to get abundances from
-% weak lines, which are linearly responsive (therefore best indicators) of
-% abundance.
-% TC provides a purely data-driven approach to stellar parameter (label)
-% determination.
-% fast, accurate, limited by systematics (which are low), meaning it works well
-% in low S/N. Perfect for survey work.
-% Simply extending dimensionality of the Cannon to include individual abundances
-% can create enormous difficulties, both in potentially overfitting and curse of DIm.
-% These extensions also imply a purely data-driven approach to abundances.
-% Here we include radiative transfer physics to explain why a polynomial extension
-% works so well, and provide a simple model to relate individual chemical
-% abundance (and teh stellar parameter labels) to a flux value.
-% We provide a direct link between model atmosphere physics and data-driven
-% approaches, allowing the data to inform models.
-% We demonstrate that individual abundances can be determined with a precision of
-% X using our models. These determinations are fast: we estimate all 15 APOGEE 
-% elemental abundances (and stellar parameters) for 60,000 stars on a modern
-% laptop in 5 minutes.
-
-
+More than 15 million spectra are expected to be acquired by stellar surveys in
+the coming decade. The detailed chemical abundance analysis of these data poses
+a significant computational challenge. \tc provides a purely data-driven
+approach to stellar parameter (label) determination. Cross-validation tests
+demonstrate that the precision achievable is comparable to existing methods that
+rely on model atmospheres and spectral synthesis, but \tc is $\sim300,000\times$ faster, making it perfectly apt for surveys. Simply extending the label vector
+dimensionality of \tc to include individual abundances can create enormous
+model difficulties, severely limiting the interpretability of the results. Here
+we describe an alternative approach to including individual element abundances
+in \tc. Using modest simplifications of the physics of spectral line formation,
+we demonstrate precisely \textit{why} an approach like \tc works so effectively,
+and provide a physically-motivated model that describes flux values, given the
+stellar parameters. The inclusion of individual chemical abundances does not
+impact on model flexibility, allowing for simultaneous training on detailed
+chemical abundances, as well as arbitrary labels where the impact on the spectra
+is unknown or poorly understood (e.g., mass, age). Crucially, we provide a link
+between data-driven models and parallel works on model atmospheres and spectral
+line formation, allowing for data to inform models. We demonstrate that
+detailed chemical abundances can be measured with a precision of 0.0X-0.0Y~dex
+in Z APOGEE spectra on a modern CPU in just one minute.
 \end{abstract}
 
 \begin{keywords}
