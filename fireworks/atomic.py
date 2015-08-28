@@ -66,23 +66,10 @@ def approximate_atomic_transitions(stellar_parameters, transitions, X_H=False,
         dict
     """
 
-    import cPickle as pickle
-
-    if False:
-        # Calculate abundances for all lines in all stars.
-        ews, abundances = _atomic_line_abundances(stellar_parameters, transitions,
-            X_H=X_H, ew_points=ew_points, photosphere_kwargs=photosphere_kwargs,
-            synthesis_kwargs=synthesis_kwargs, **kwargs)
-
-        with open("tmp.pkl", "wb") as fp:
-            pickle.dump((ews, abundances), fp, -1)
-    else:
-        with open("tmp.pkl", "rb") as fp:
-            ews, abundances = pickle.load(fp)
-
-        if X_H:
-            logger.warn("ASSUMING ALL FE")
-            abundances -= 7.5
+    # Calculate abundances for all lines in all stars.
+    ews, abundances = _atomic_line_abundances(stellar_parameters, transitions,
+        X_H=X_H, ew_points=ew_points, photosphere_kwargs=photosphere_kwargs,
+        synthesis_kwargs=synthesis_kwargs, **kwargs)
 
     # f(teff, logg, EW) --> logX
     full_output = kwargs.pop("full_output", False)
