@@ -147,6 +147,7 @@ SiI_transitions = Table(np.array([
 SiI_transitions["wavelength"] = np.array(map(air2vac, SiI_transitions["wavelength"]))
 
 
+# It seems this is not in APOGEE.
 CrI_transitions = Table(np.array([
     [15680.063, 24.0,   4.697, +0.179],
     [15860.214, 24.0,   4.697, -0.012]
@@ -159,23 +160,43 @@ CoI_transitions = Table(np.array([
     ]), names=["wavelength", "species", "excitation_potential", "loggf"])
 CoI_transitions["wavelength"] = np.array(map(air2vac, CoI_transitions["wavelength"]))
 
+VI_transitions = Table(np.array([
+    [15924., 23.0, 2.138, -1.175]
+    ]), names=["wavelength", "species", "excitation_potential", "loggf"])
+VI_transitions["wavelength"] = np.array(map(air2vac, VI_transitions["wavelength"]))
 
 
+
+Ni1_transitions = Table(np.array([
+    [15605.680, 28.0, 5.299, -0.376],
+    [15632.654, 28.0, 5.305, -0.106],
+    [16584.439, 28.0, 5.299, -0.528],
+    [16589.295, 28.0, 5.469, -0.600],
+    [16673.711, 28.0, 6.029, +0.317],
+    [16815.471, 28.0, 5.305, -0.606],
+    [16818.760, 28.0, 6.039, +0.311],
+    ]), names=["wavelength", "species", "excitation_potential", "loggf"])
 
 atomic_lines = {
     "MG_H": MgI_transitions,
-    "AL_H": AlI_transitions
+    "AL_H": AlI_transitions,
+    "SI_H": SiI_transitions,
+#    "CR_H": CrI_transitions, # Not in APOGEE
+    "V_H": VI_transitions,
+#    "CO_H": CoI_transitions, # Not in APOGEE
+    "NI_H": Ni1_transitions,
+
 }
 label_vector_description = "TEFF^4 TEFF^3 TEFF^2 TEFF LOGG LOGG^2 TEFF*LOGG TEFF^2*LOGG TEFF*LOGG^2 PARAM_M_H PARAM_M_H*TEFF PARAM_M_H*TEFF^2 PARAM_ALPHA_M PARAM_M_H*PARAM_ALPHA_M" 
 
 
-temp_filename = "fireworks-Mg+Al.pkl"
+temp_filename = "fireworks-Mg+Al+Si+V+Ni.pkl"
 
 import os
 if not os.path.exists(temp_filename):
     model = fireworks.FireworksModel(stars, wavelengths, fluxes, flux_uncertainties)
     result = model.train(label_vector_description, atomic_lines, X_H=True)
-    model.save(temp_filename, with_data=True, overwrite=True)
+    model.save(temp_filename, with_data=True)
 
 else:
     model = fireworks.FireworksModel.from_filename(temp_filename)

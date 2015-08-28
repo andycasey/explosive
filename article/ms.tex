@@ -8,7 +8,7 @@
 
 % Convenient maths.
 \newcommand\K{$\mathbf{K}$}
-\newcommand\lv{\bf{\boldsymbol\ell_n}}
+\newcommand\lv{\mathbf{\boldsymbol\ell_n}}
 \newcommand\cv{{\boldsymbol\theta}_\lambda}
 \newcommand\given{|}
 
@@ -92,8 +92,9 @@ we opt for [M/H] to describe overall metallicity throughout this \article{}})
 and demonstrate by cross-validation that these labels can be 
 measured with a precision of 95~K in $T_{\rm eff}$, 0.24 in $\log{g}$, 0.08 in 
 [M/H], with negligible biases. It is important to note that these uncertainties
-are comparable to those reported by \textit{curve-of-growth} techniques, which
-rely on a model atmosphere and the changing strength of atomic absorption lines.
+are comparable to those reported from using \textit{curve-of-growth} on similar 
+data sets (e.g., \citet{X,Y}).  
+
 
 Utilising a simple polynomial model to predict spectral fluxes is a distinctive
 method from parallel efforts in radiative transfer of realistic (3D) stellar 
@@ -106,7 +107,21 @@ simplicity of \tc{} and a quadratic-in-labels spectral model, it is remarkable
 that these complex calculations can be simplified so much, whilst maintaining
 the typical fidelity reported for high-resolution spectroscopic studies.
 
+Before extending this framework to include individual chemical abundances, it is
+a useful exercise to understand \textit{why} a simple polynomial model can 
+approximate spectral synthesis calculations with comparable fidelity. The reason
+extends past model flexibility: one could imagine a similar coefficient vector
+$\cv$ with a different functional form of the label vector $\lv$ (e.g., an
+extreme case might be $\lv \equiv [1, {\rm [M/H]}^{T_{\rm eff}},
+\log{g}^{T_{\rm eff}}]$) which would probably be incapable of describing
+spectral fluxes with any fidelity.
 
+% Describe the model of EW formation
+
+% How this changes as a function of teff, logg, feh
+
+% dealing with integrated EW.
+% APOGEE is R ~ 20,000
 
 
 % existing simple model. replaces expensive synthesis, involving model atmosphere
