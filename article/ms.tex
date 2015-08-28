@@ -1,9 +1,17 @@
 \documentclass[useAMS,usenatbib]{mn2e}
 
+% Convenient colloquiualisms.
 \newcommand\tc{\textit{The Cannon}}
-\title[Cannon Chemistry]{Extending \tc{} to Individual Chemical Abundances} 
+
+% Convenient maths.
+\newcommand\lv{\mathbf{l_n}}
+\newcommand\cv{{\mathbf \theta}_\lambda}
+\newcommand\given{|}
+
+\title[Cannon Chemistry]{Detailed Chemical Abundances with \tc} 
 % Some arrangement of the following authors:
-\author[Casey et al.]{A.~R.~Casey$^1$, M.~Ness$^2$, G.~Gilmore$^1$, D.~W.~Hogg$^{2,3,4}$, H.~W.~Rix$^2$ \\ 
+\author[Casey et al.]{A.~R.~Casey$^1$, M.~Ness$^2$, G.~Gilmore$^1$,
+    D.~W.~Hogg$^{2,3,4}$, H.~W.~Rix$^2$ \\ 
 $^1$Institute of Astronomy, University of Cambridge, Madingley Road, Cambridge
     CB3 0HA, UK\\
 $^2$Max-Planck-Institut f\"ur Astronomie, K\"onigstuhl 17, D-69117 Heidelberg,
@@ -24,6 +32,29 @@ $^4$Center for Data Science, New York University, 726 Broadway, 7th Floor,
 \label{firstpage}
 
 \begin{abstract}
+% large surveys spectroscopically planned.
+% poses computing challenge.
+% commonalityies between them: all R ~ 20,000, trying to get abundances from
+% weak lines, which are linearly responsive (therefore best indicators) of
+% abundance.
+% TC provides a purely data-driven approach to stellar parameter (label)
+% determination.
+% fast, accurate, limited by systematics (which are low), meaning it works well
+% in low S/N. Perfect for survey work.
+% Simply extending dimensionality of the Cannon to include individual abundances
+% can create enormous difficulties, both in potentially overfitting and curse of DIm.
+% These extensions also imply a purely data-driven approach to abundances.
+% Here we include radiative transfer physics to explain why a polynomial extension
+% works so well, and provide a simple model to relate individual chemical
+% abundance (and teh stellar parameter labels) to a flux value.
+% We provide a direct link between model atmosphere physics and data-driven
+% approaches, allowing the data to inform models.
+% We demonstrate that individual abundances can be determined with a precision of
+% X using our models. These determinations are fast: we estimate all 15 APOGEE 
+% elemental abundances (and stellar parameters) for 60,000 stars on a modern
+% laptop in 5 minutes.
+
+
 \end{abstract}
 
 \begin{keywords}
@@ -31,11 +62,70 @@ $^4$Center for Data Science, New York University, 726 Broadway, 7th Floor,
 
 \section{Introduction}
 
+% it's awesome: fast, accurate and precise (given the models published thus far)
+% impressively it does all this whilst ignoring all advances made in stellar physics over the past 100 years.
+
+\section{Model}
+
+
+\tc{} provides a purely data-driven approach to stellar label determination. The
+spectral model describes the flux at every pixel $f_{n\lambda}$ to be a function
+of a coefficient vector $\cv$, and a label vector $\lv$:
+
+\begin{equation}
+    f_{n\lambda} = g(\lv\given\cv) + {\rm noise}.
+\end{equation}
+
+This form is flexible: the label vector $\lv$ may be linear in just a few labels
+or a complex combination of all $K$ available labels. The underlying principle
+is that the flux for any pixel from any star is predictable with a very simple
+model (generally a polynomial), given the labels. Indeed, \citet{Ness2015}
+employ a quadratic-in-labels (see their Equation 8) spectral model using stellar
+parameters (effective temperature $T_{\rm eff}$, surface gravity $\log{g}$, and 
+metallicity [M/H]) and demonstrate by cross-validation that these labels can be 
+measured with a precision of 95~K in $T_{\rm eff}$, 0.24 in $\log{g}$, 0.08 in 
+[M/H], with negligible biases.
+
+Utilising a simple polynomial model to predict spectral fluxes is in stark
+contrast to parallel efforts in radiative transfer of realistic (3D) stellar 
+photospheres. Calculations of this nature are extremely expensive. Indeed, even
+with simplications of these models (e.g., interpolated 1D photospheres),
+calculating integrated flux requires knowledge of species opacities, detailed 
+atomic and molecular information for all contributing elements, solving for
+the equation of state, and performing radiative transfer calculations. Given the
+simplicity of \tc{} and a quadratic-in-labels spectral model, it is remarkable
+that these complex calculations can be simplified so much, whilst maintaining
+the typical fidelity reported for high-resolution spectroscopic studies.
+
+
+
+
+% existing simple model. replaces expensive synthesis, involving model atmosphere
+% generation, t-tau relations, opacities, equation of state, integrated line-of-sight
+% and radiative transfer, etc.
+
+% before extending this model to include individual abundances, it is worthwhile
+% demonstrating (from a physics perspective) *why* the cannon works so well.
+
+% APOGEE, R of 20,000, 
+% LAMOST, higher Rs
+% super high-resolution also works.
+
+
+\section{Analysis}
+% Detailed chemical abundances with APOGEE.
+
+
+
 \section{Conclusions}
 
 
 \section*{Acknowledgments}
-This research was fostered by discussions at the \textit{New Milky Way} conference hosted by the Munich Institute for Astro- and Particle Physics, and the \textit{Stellar Streams in the Local Universe} conference hosted at Ringberg Castle by the Max-Planck-Institut F\"ur Astronomie. This research made use of Astropy, a community-developed core Python package for Astronomy \citep{astropy}.
+This research was fostered by discussions at the \textit{New Milky Way}
+conference hosted by the Munich Institute for Astro- and Particle Physics, and
+the \textit{Stellar Streams in the Local Universe} conference hosted at Ringberg
+Castle by the Max-Planck-Institut F\"ur Astronomie. This research made use of 
+Astropy, a community-developed core Python package for Astronomy \citep{astropy}.
 
 \begin{thebibliography}{99}
 %\bibitem[\protect\citeauthoryear{Baird}{1981}]{b1} Baird S.R., 1981,
