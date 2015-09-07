@@ -189,7 +189,7 @@ atomic_lines = {
 }
 label_vector_description = "TEFF^4 TEFF^3 TEFF^2 TEFF LOGG LOGG^2 TEFF*LOGG TEFF^2*LOGG TEFF*LOGG^2 PARAM_M_H PARAM_M_H*TEFF PARAM_M_H*TEFF^2 PARAM_ALPHA_M PARAM_M_H*PARAM_ALPHA_M" 
 
-
+"""
 temp_filename = "fireworks-Mg+Al+Si+V+Ni.pkl"
 
 import os
@@ -202,6 +202,18 @@ else:
     model = fireworks.FireworksModel.from_filename(temp_filename)
 
 label_names, expected_labels, inferred_labels = model.label_residuals
+"""
+
+"""
+model = fireworks.FireworksModel(stars, wavelengths, fluxes, flux_uncertainties)
+atomic_lines = {
+    "AL_H": AlI_transitions
+}
+result = model.train(label_vector_description, atomic_lines=atomic_lines)
+model.save("t2.pkl", with_data=True, overwrite=True)
+"""
+
+model = fireworks.FireworksModel.from_filename("t2.pkl", verify=False)
 
 
 # 

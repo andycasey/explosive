@@ -320,7 +320,7 @@ class BaseModel(object):
         # Contents is: trained attributes, data hash, data trained on
         trained_contents = dict(zip(cls._trained_attributes, contents))
         N = len(trained_contents)
-        expected_data_hash = contents[N-1]
+        expected_data_hash = contents[N]
 
         if N + 1 >= len(contents):
             raise TypeError("saved model in {} does not include data".format(
@@ -335,7 +335,7 @@ class BaseModel(object):
 
         # Create the model by initialising it with the data attributes.
         model = cls(**dict(zip([_[1:] for _ in cls._data_attributes],
-            contents[N:])))
+            contents[N+1:])))
 
         # Set the training attributes.
         for k, v in trained_contents.items():

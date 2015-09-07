@@ -362,10 +362,9 @@ class CannonModel(model.BaseModel):
         except AttributeError:
             None
 
-        label_indices, label_names = self._get_linear_indices(
-            self._label_vector_description, full_output=True)
-        expected_labels = np.zeros((self._fluxes.shape[0], len(label_names)))
-        inferred_labels = np.zeros((self._fluxes.shape[0], len(label_names)))
+        names = self.lv_labels
+        expected_labels = np.zeros((self._fluxes.shape[0], len(names)))
+        inferred_labels = np.zeros((self._fluxes.shape[0], len(names)))
 
         # [TODO] Parallelise this?
         # We would need some advice from the user about how many threads to use.
@@ -373,13 +372,13 @@ class CannonModel(model.BaseModel):
         for i, (flux, uncertainty) \
         in enumerate(zip(self._fluxes, self._flux_uncertainties)):
             inferred = self.solve_labels(flux, uncertainty)
-            for j, label_name in enumerate(label_names):
+            for j, label_name in enumerate(names):
                 expected_labels[i, j] = self._labels[label_name][i]
                 inferred_labels[i, j] = inferred[label_name]
 
         # Cache for future, unless the training state changes.
         self._residuals_hash = self._trained_hash
-        self._residuals_cache = (label_names, expected_labels, inferred_labels)
+        self._residuals_cache = (names, expected_labels, inferred_labels)
         return self._residuals_cache
 
 
@@ -477,9 +476,7 @@ class CannonModel(model.BaseModel):
         if label_vector_description is None:
             label_vector_description = self._label_vector_description
 
-        label_indices, label_names = self._get_linear_indices(
-            label_vector_description, full_output=True)
-
+        label_names = self.lv_labels
         N_realisations, N_labels = self._fluxes.shape[0], len(label_names)
         inferred_test_labels = np.nan * np.ones((N_realisations, N_labels))
         expected_test_labels = np.ones((N_realisations, N_labels))
@@ -492,7 +489,6 @@ class CannonModel(model.BaseModel):
             
             mask = np.ones(N_realisations, dtype=bool)
             mask[i] = False
-
 
             # Create a model to use so we don't overwrite self.
             model = self.__class__(self._labels[mask], self._wavelengths,

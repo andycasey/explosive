@@ -402,18 +402,17 @@ class FireworksModel(cannon.CannonModel):
 
         # Create the function.
         def f(coefficients, *labels):
-            # Build the weak lines spectrum.
 
+            # Build the weak lines spectrum.
+            N = len(self._atomic_lines)
+            weak_line_fluxes = np.ones(flux.size)
             stellar_parameters = [labels[self.lv_labels.index(_)] \
                 for _ in self._stellar_parameter_labels]
 
-            weak_line_fluxes = np.ones(flux.size)
-            N = len(self._atomic_lines)
             for i, (label, abundance) \
             in enumerate(zip(self._atomic_lines.keys(), labels[-N:])):
 
                 transitions, ew_coefficients = self._atomic_lines[label]
-
                 for j, mu in enumerate(transitions["wavelength"]):
                     # The 1e-3 factor is to turn the EW from milliAngstroms
                     # into Angstroms.
@@ -446,7 +445,7 @@ class FireworksModel(cannon.CannonModel):
 
         # Remove the temporary finite mask.
         del self._finite_mask
-        
+
         # We might have solved for any number of parameters, so we return a dict
         p_opt = { k: p_opt[i] + self._offsets[k] for i, k in enumerate(names) }
         logger.debug("Final solution: {}".format(p_opt))
