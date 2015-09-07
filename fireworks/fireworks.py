@@ -216,6 +216,9 @@ class FireworksModel(cannon.CannonModel):
             ax.plot(self._wavelengths, self._fluxes[0] / weak_line_fluxes[0], c='r', zorder=1000)
             #raise a
 
+            # Update the offsets to be zero for atomic lines.
+            offsets.update({ k: 0 for k in atomic_lines })
+
         else:
             atomic_line_model = None
 
@@ -235,6 +238,7 @@ class FireworksModel(cannon.CannonModel):
 
             if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
                 logger.warn("No finite coefficients at pixel {}!".format(i))
+
 
         # Save all of these to the model.
         self._trained = True
