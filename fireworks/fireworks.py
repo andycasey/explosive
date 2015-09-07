@@ -18,11 +18,11 @@ logger = logging.getLogger("fireworks")
 
 class FireworksModel(cannon.CannonModel):
 
-    _trained_attributes = ("_coefficients", "_scatter", "_offsets",
-        "_label_vector_description",
-        "_atomic_lines", "_stellar_parameter_labels")
-    _data_attributes = ("_labels", "_wavelengths", "_fluxes",
-        "_flux_uncertainties")
+    _trained_attributes \
+        = ("_coefficients", "_scatter", "_offsets", "_label_vector_description",
+            "_stellar_parameter_labels", "_atomic_lines")
+    _data_attributes \
+        = ("_labels", "_wavelengths", "_fluxes", "_flux_uncertainties")
 
     def __init__(self, labels, wavelengths, fluxes, flux_uncertainties,
         verify=True):
