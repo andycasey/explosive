@@ -10,6 +10,7 @@
 *.log
 *.pdf
 *.ps
+*.synctex.gz
 
 # Data crap.
 *.memmap
