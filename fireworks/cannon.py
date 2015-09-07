@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-""" Cannon Chemistry """
+""" The Cannon. """
 
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
+import multiprocessing as mp
 import numpy as np
-
 import scipy.optimize as op
+from astropy.table import Table
+
 from . import (model, plot, utils)
 
 logger = logging.getLogger("fireworks")
@@ -16,9 +18,11 @@ logger = logging.getLogger("fireworks")
 
 class CannonModel(model.BaseModel):
 
-    _trained_attributes = ("_coefficients", "_scatter", "_offsets")
-    _data_attributes = ("_labels", "_wavelengths", "_fluxes",
-        "_flux_uncertainties")
+    _trained_attributes \
+        = ("_coefficients", "_scatter", "_offsets", "_label_vector_description")
+    _data_attributes \
+        = ("_labels", "_wavelengths", "_fluxes", "_flux_uncertainties")
+
 
     def __init__(self, labels, wavelengths, fluxes, flux_uncertainties,
         verify=True):
@@ -32,17 +36,17 @@ class CannonModel(model.BaseModel):
             :class:`~astropy.table.Table`
 
         :param wavelengths:
-            The wavelengths of the given pixels.
+            The common wavelength values of the pixels.
 
         :type wavelengths:
-            :class:`np.array`
+            :class:`~np.array`
 
         :param fluxes:
             An array of fluxes for each star as shape (num_stars, num_pixels).
             The num_stars should match the rows in `labels`.
 
         :type fluxes:
-            :class:`np.ndarray`
+            :class:`~np.ndarray`
 
         :param flux_uncertainties:
             An array of 1-sigma flux uncertainties for each star as shape
@@ -50,14 +54,14 @@ class CannonModel(model.BaseModel):
             should match the `fluxes` array. 
 
         :type flux_uncertainties:
-            :class:`np.ndarray`
+            :class:`~np.ndarray`
         """
 
-        super(CannonModel, self).__init__(labels, fluxes, flux_uncertainties,
-            wavelengths, verify)
+        super(self.__class__, self).__init__(labels, fluxes, flux_uncertainties,
+            wavelengths=wavelengths, verify=verify)
 
 
-    def train(self, label_vector_description, N=None, limits=None, pivot=False,
+    def train(self, label_vector_description, N=None, limits=None, pivot=True,
         **kwargs):
         """
         Train a Cannon model based on the label vector description provided.
@@ -66,7 +70,7 @@ class CannonModel(model.BaseModel):
             The human-readable form of the label vector description.
 
         :type label_vector_description:
-            str or list of str
+            str
 
         :param N: [optional]
             Limit the number of stars used in the training set. If left to None,
@@ -105,22 +109,99 @@ class CannonModel(model.BaseModel):
         scatter = np.nan * np.ones(N_pixels)
         coefficients = np.nan * np.ones((N_pixels, lva.shape[0]))
         
-        pb_size = 100 if __kwargs.pop("__progressbar", True) else 0
-        pb_message = "Training {0} model from {1} stars with {2} pixels:\n"\
-            .format(self.__class__.__name__[:-5], N_stars, N_pixels)
-        for i in utils.progressbar(range(N_pixels), pb_message, pb_size):
+        # Display a progressbar unless requested otherwise.
+        pb_show = kwargs.pop("__progressbar", True)
+        N_threads = int(max([1, kwargs.pop("threads", 1)]))
+        if N_threads == 1:
+            pb_mg = "Training Cannon model from {0} stars with {1} pixels each"\
+                .format(N_stars, N_pixels)
 
-            coefficients[i, :], scatter[i] = _fit_pixel(
-                self._fluxes[use, i], self._flux_uncertainties[use, i], lva,
-                **kwargs)
+            for i in utils.progressbar(range(N_pixels),
+                message=pb_mg, size=N_pixels if pb_show else -1):
 
-            if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
-                logger.warn("No finite coefficients at pixel {}!".format(i))
+                if np.isfinite(self._fluxes[use, i] \
+                    * self._flux_uncertainties[use, i]).sum() == 0:
+                    continue
+
+                coefficients[i, :], scatter[i] = _fit_pixel(
+                    self._fluxes[use, i], self._flux_uncertainties[use, i], lva,
+                    **kwargs)
+
+                if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
+                    logger.warn("No finite coefficients at pixel {}!".format(i))
+
+        else:
+            pb_mg = "Training Cannon model in {0} parallel threads from {1} s"\
+                "tars with {2} pixels each".format(N_threads, N_stars, N_pixels)
+
+            # Summertime!
+            processes = []
+            pool = mp.Pool(N_threads)
+            for i in range(N_pixels):
+                if not np.any(np.isfinite(
+                    self._fluxes[use, i] * self._flux_uncertainties[use, i])):
+                    continue
+
+                p = pool.apply_async(_fit_pixel, args=(self._fluxes[use, i],
+                    self._flux_uncertainties[use, i], lva), kwds=kwargs)
+                processes.append((i, p))
+
+            # Collate the results.
+            for i, p in utils.progressbar(processes, message=pb_mg,
+                size=N_pixels if pb_show else -1):
+
+                coefficients[i, :], scatter[i] = p.get()
+
+                if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
+                    logger.warn("No finite coefficients at pixel {}".format(i))
+
+            # Winter is coming.
+            pool.close()
+            pool.join()
 
         self._coefficients, self._scatter, self._offsets, self._trained \
             = coefficients, scatter, offsets, True
 
         return (coefficients, scatter, offsets)
+
+
+    def _get_linear_indices(self, label_vector_description, full_output=False):
+        """
+        Return indices of linear labels in the given label vector description.
+
+        :param label_vector_description:
+            The human-readable label vector description.
+
+        :type label_vector_description:
+            str
+
+        :param full_output: [optional]
+            Return the indices and the names of the corresponding linear labels.
+
+        :type full_output:
+            bool
+
+        :returns:
+            The indices of the linear terms in the label vector description. If
+            `full_output` is True, then the corresponding label names are also
+            provided. The indices are index-zeroed (i.e., there is no adjustment
+            for the zeroth term of a label vector array typically being '1').
+        """
+
+        lvi = self._parse_label_vector_description(label_vector_description,
+            verbose=False)
+
+        names = []
+        indices = []
+        for i, term in enumerate(lvi):
+            if len(term) == 1 and term[0][1] == 1:
+                names.append(term[0][0])
+                indices.append(i)
+        names, indices = tuple(names), np.array(indices)
+
+        if full_output:
+            return (indices, names)
+        return indices
 
 
     @model.requires_training_wheels
@@ -161,16 +242,19 @@ class CannonModel(model.BaseModel):
                     "were given: {2}".format(len(names), len(labels),
                         ", ".join(names)))
 
+        offsets = np.array([self._offsets[name] for name in names])
+
         label_vector_indices = self._parse_label_vector_description(
             self._label_vector_description, return_indices=True,
             __columns=names)
 
         return np.dot(self._coefficients, _build_label_vector_rows(
-            label_vector_indices, labels).T).flatten()
+            label_vector_indices, labels - offsets).T).flatten()
+
 
 
     @model.requires_training_wheels
-    def solve_labels(self, flux, flux_uncertainties, **kwargs):
+    def solve_labels(self, flux, flux_uncertainties, threads=1, **kwargs):
         """
         Solve the labels for given fluxes (and uncertainties) using the trained
         model.
@@ -180,14 +264,20 @@ class CannonModel(model.BaseModel):
             as the trained data.
 
         :type fluxes:
-            :class:`~np.array`
+            :class:`~np.ndarray`
 
         :param flux_uncertainties:
             The 1-sigma uncertainties in the fluxes. This should have the same
             shape as `fluxes`.
 
         :type flux_uncertainties:
-            :class:`~np.array`
+            :class:`~np.ndarray`
+
+        :param threads: [optional]
+            The number of parallel threads to use.
+
+        :type threads:
+            int
 
         :returns:
             The labels for the given fluxes as a dictionary.
@@ -196,72 +286,46 @@ class CannonModel(model.BaseModel):
             If the model is not trained.
         """
 
-        # Get an initial estimate of those parameters from a simple inversion.
-        # (This is very much incorrect for non-linear terms).
-        finite = np.isfinite(self._coefficients[:, 0]*flux *flux_uncertainties)
-        Cinv = 1.0 / (self._scatter[finite]**2 + flux_uncertainties[finite]**2)
-        A = np.dot(self._coefficients[finite, :].T,
-            Cinv[:, None] * self._coefficients[finite, :])
-        B = np.dot(self._coefficients[finite, :].T,
-            Cinv * flux[finite])
-        initial_vector_p0 = np.linalg.solve(A, B)
+        flux = np.array(flux)
+        flux_uncertainties = np.array(flux_uncertainties)
 
-        # p0 contains all coefficients, but we only want the linear terms to
-        # make an initial estimate.
-        indices, names = self._get_linear_indices(self._label_vector_description,
-            full_output=True)
+        # We will want the linear terms to make an initial estimate.
+        indices, names = self._get_linear_indices(
+            self._label_vector_description, full_output=True)
         if len(indices) == 0:
             raise NotImplementedError("no linear terms in Cannon model -- TODO")
 
-        # Get the initial guess of just the linear parameters.
-        # (Here we make a + 1 adjustment for the first '1' term)
-        p0 = initial_vector_p0[indices + 1]
-
-        logger.debug("Initial guess: {0}".format(dict(zip(names, p0))))
-
-        # Now we need to build up label vector rows by indexing relative to the
-        # labels that we will actually be solving for (in this case it's the
-        # variable 'names'), and not the labels as they are currently referenced
-        # in self._labels
         label_vector_indices = self._parse_label_vector_description(
             self._label_vector_description, return_indices=True,
             __columns=names)
 
-        # Create the function.
-        def f(coefficients, *labels):
-            return np.dot(coefficients, _build_label_vector_rows(
-                label_vector_indices, labels).T).flatten()
+        args = [self._coefficients, self._scatter, self._offsets, indices,
+            names, label_vector_indices]
 
-        # Optimise the curve to solve for the parameters and covariance.
-        full_output = kwargs.pop("full_output", False)
-        kwds = kwargs.copy()
-        kwds.setdefault("maxfev", 10000)
-        labels, covariance = op.curve_fit(f, self._coefficients[finite],
-            flux[finite], p0=p0, sigma=1.0/np.sqrt(Cinv), absolute_sigma=True,
-            **kwds)
+        if flux.ndim == 1: 
+            labels = _solve_labels_single(flux, flux_uncertainties, *args,
+                **kwargs)
 
-        # We might have solved for any number of parameters, so we return a
-        # dictionary.
-        logger.debug("TODO: apply offsets as required")
-        labels = dict(zip(names, labels))
+        else:
+            labels = np.nan * np.ones((flux.shape[0], len(names)))
+            if threads > 1:
+                processes = []
+                pool = mp.Pool(threads)
+                for i, (f, u) in enumerate(zip(flux, flux_uncertainties)):
+                    processes.append((i, pool.apply_async(_solve_labels_single,
+                        args=[f, u] + args, kwds=kwargs)))
 
-        logger.debug("Final solution: {0}".format(labels))
+                for i, p in enumerate(processes):
+                    labels[i, :] = p.get()
 
-        if full_output:
-            return (labels, covariance)
+                pool.close()
+                pool.join()
+
+            else:
+                for i, (f, u) in enumerate(zip(flux, flux_uncertainties)):
+                    labels[i, :] = _solve_labels_single(f, u, *args, **kwargs)
+
         return labels
-
-
-    @property
-    @model.requires_training_wheels
-    def labels(self):
-        """
-        Return a list of the labels involved in this model.
-        """
-
-        _, labels = self._get_linear_indices(self._label_vector_description,
-            full_output=True)
-        return list(labels)
 
 
     @property
@@ -286,21 +350,98 @@ class CannonModel(model.BaseModel):
         except AttributeError:
             None
 
-        labels = self.labels
-        expected_labels = np.zeros((self._fluxes.shape[0], len(labels)))
-        inferred_labels = np.zeros((self._fluxes.shape[0], len(labels)))
+        label_indices, label_names = self._get_linear_indices(
+            self._label_vector_description, full_output=True)
+        expected_labels = np.zeros((self._fluxes.shape[0], len(label_names)))
+        inferred_labels = np.zeros((self._fluxes.shape[0], len(label_names)))
+
+        # [TODO] Parallelise this?
+        # We would need some advice from the user about how many threads to use.
 
         for i, (flux, uncertainty) \
         in enumerate(zip(self._fluxes, self._flux_uncertainties)):
             inferred = self.solve_labels(flux, uncertainty)
-            for j, label_name in enumerate(labels):
+            for j, label_name in enumerate(label_names):
                 expected_labels[i, j] = self._labels[label_name][i]
                 inferred_labels[i, j] = inferred[label_name]
 
         # Cache for future, unless the training state changes.
         self._residuals_hash = self._trained_hash
-        self._residuals_cache = (labels, expected_labels, inferred_labels)
+        self._residuals_cache = (label_names, expected_labels, inferred_labels)
         return self._residuals_cache
+
+
+    @model.requires_training_wheels
+    def cross_validate_by_label(self, cv_label, label_vector_description=None,
+        **kwargs):
+        """
+        Group stars together by some unique label, then perform cross-validation
+        on each group.
+
+        :param cv_label:
+            The label to use to group stars together (e.g., FIELD).
+
+        :type cv_label:
+            str
+
+        :params label_vector_description: [optional]
+            The human-readable form of the label vector description. If None is
+            given, the currently trained label vector description is used.
+
+        :type label_vector_description:
+            str    
+        """
+
+        if label_vector_description is None:
+            label_vector_description = self._label_vector_description
+
+        label_indices, label_names = self._get_linear_indices(
+            label_vector_description, full_output=True)
+
+        # Group stars by their distinctive label.
+        unique_cv_labels = set(self._labels[cv_label])
+        N_labels, N_stars, N_realisations \
+            = map(len, (label_names, self._labels, unique_cv_labels))
+        cross_validated_labels = np.nan * np.ones((N_stars, N_labels))
+
+        # [TODO] Thread this
+        for n, unique_cv_label in enumerate(unique_cv_labels, start=1):
+
+            # Identify which stars belong to the training set and which belong
+            # to the testing set.
+            testing_set = self._labels[cv_label] == unique_cv_label
+            training_set = ~testing_set
+
+            logger.info("Doing cross-validation realisation {0}/{1} on a test "\
+                "set containing {2} stars with {3} = {4}".format(
+                    n, N_realisations, testing_set.sum(), cv_label, 
+                    unique_cv_label))
+
+            # Create a model to use so we don't overwrite self.
+            model = self.__class__(self._labels[training_set],
+                self._wavelengths, self._fluxes[training_set, :],
+                self._flux_uncertainties[training_set, :])
+            model.train(label_vector_description, **kwargs)
+
+            # Solve for the stars in the testing set.
+            for j, index in enumerate(np.where(testing_set)[0]):
+                try:
+                    inferred_labels = model.solve_labels(self._fluxes[index, :],
+                        self._flux_uncertainties[index, :])
+                except:
+                    logger.exception("Exception in solving star with index {0}"
+                        " in cross-validation set with {1} = {2}".format(index,
+                            cv_label, unique_cv_label))
+                else:
+                    for k, name in enumerate(label_names):
+                        cross_validated_labels[index, k] = inferred_labels[name]
+
+        # Get the expected label names.
+        expected_labels = np.nan * np.ones(cross_validated_labels.shape)
+        for k, name in enumerate(label_names):
+            expected_labels[:, k] = self._labels[name]
+
+        return (label_names, expected_labels, cross_validated_labels)
 
 
     @model.requires_training_wheels
@@ -334,13 +475,16 @@ class CannonModel(model.BaseModel):
         # Go through each combination.
         # [TODO] Thread everything.
         for i in range(N_realisations):
-
+            logger.info("Doing cross-validation realisation {0}/{1} on a test "\
+                "set containing 1 star".format(i + 1, N_realisations))
+            
             mask = np.ones(N_realisations, dtype=bool)
             mask[i] = False
 
+
             # Create a model to use so we don't overwrite self.
-            model = self.__class__(self._labels[mask], self._fluxes[mask, :],
-                self._flux_uncertainties[mask, :])
+            model = self.__class__(self._labels[mask], self._wavelengths,
+                self._fluxes[mask, :], self._flux_uncertainties[mask, :])
             model.train(label_vector_description, **kwargs)
 
             # Solve for the one left out.
@@ -362,46 +506,7 @@ class CannonModel(model.BaseModel):
                 for j, name in enumerate(label_names):
                     expected_test_labels[i, j] = self._labels[~mask][name]
                 
-        return (label_names, elxpected_test_labels, inferred_test_labels)
-
-
-    def _get_linear_indices(self, label_vector_description, full_output=False):
-        """
-        Return indices of linear labels in the given label vector description.
-
-        :param label_vector_description:
-            The human-readable label vector description.
-
-        :type label_vector_description:
-            str
-
-        :param full_output: [optional]
-            Return the indices and the names of the corresponding linear labels.
-
-        :type full_output:
-            bool
-
-        :returns:
-            The indices of the linear terms in the label vector description. If
-            `full_output` is True, then the corresponding label names are also
-            provided. The indices are index-zeroed (i.e., there is no adjustment
-            for the zeroth term of a label vector array typically being '1').
-        """
-
-        lvi = self._parse_label_vector_description(label_vector_description,
-            verbose=False)
-
-        names = []
-        indices = []
-        for i, term in enumerate(lvi):
-            if len(term) == 1 and term[0][1] == 1:
-                names.append(term[0][0])
-                indices.append(i)
-        indices = np.array(indices)
-        
-        if full_output:
-            return (indices, names)
-        return indices
+        return (label_names, expected_test_labels, inferred_test_labels)
 
 
     def _parse_label_vector_description(self, label_vector_description,
@@ -490,7 +595,7 @@ class CannonModel(model.BaseModel):
         return theta
 
 
-    def _repr_label_vector_description(self, label_vector_indices, **kwargs):
+    def _repr_label_vector_description(self, label_vector_indices):
         """
         Represent label vector indices as a readable label vector description.
 
@@ -502,7 +607,7 @@ class CannonModel(model.BaseModel):
             A human-readable string of the label vector description.
         """
 
-        string = [kwargs.pop("__first_vector_desc", "1")]
+        string = ["1"]
         for cross_terms in label_vector_indices:
             sub_string = []
             for descr, order in cross_terms:
@@ -542,6 +647,44 @@ class CannonModel(model.BaseModel):
             A figure showing the flux residuals.
         """
         return plot.flux_residuals(self, parameter, percentile, **kwargs)
+
+
+    @model.requires_training_wheels
+    def plot_label_residuals(self, aux=None, **kwargs):
+        """
+        Plot the label residuals.
+        """
+
+        _aux = self._labels[aux] if aux is not None else None
+        labels, expected, inferred = self.label_residuals
+
+        return plot.label_residuals(labels, expected, inferred, _aux, 
+            aux_label=aux, **kwargs)
+
+
+    @model.requires_training_wheels
+    def plot_model_scatter(self, **kwargs):
+        """ Plot the model scatter at each pixel. """
+
+        return plot.model_scatter(self._scatter, self._wavelengths, **kwargs)
+
+
+    @model.requires_training_wheels
+    def _plot_random_spectrum(self, **kwargs):
+        """
+        Pick a random star from the sample, plot the spectrum and the predicted
+        spectrum.
+        """
+
+        index = int(np.random.uniform(0, self._fluxes.shape[0]))
+
+        _, names = self._get_linear_indices(
+            self._label_vector_description, full_output=True)
+        model = self.predict([self._labels[name][index] for name in names])
+        return plot.spectra(self._wavelengths, self._fluxes[index], model,
+            title="Index {}".format(index), **kwargs)
+
+        
 
 
 
@@ -827,13 +970,17 @@ def _build_label_vector_array(labels, label_vector, N=None, limits=None,
     if N is not None:
         indices = indices[np.linspace(0, indices.sum() - 1, N, dtype=int)]
     
-    labels = labels[indices]
+    labels = labels[indices].copy()
+    unique_labels = set([_[0] for _ in sum(label_vector, [])])
+    
     if pivot:
-        raise NotImplementedError
-        offsets = labels.mean(axis=0)
-        labels -= offsets
+        offsets = {}
+        for label in unique_labels:
+            pivot_point = np.nanmean(labels[label])
+            offsets[label] = pivot_point
+            labels[label] -= pivot_point
     else:
-        offsets = np.zeros(len(labels.colnames))
+        offsets = dict(zip(unique_labels, np.zeros(len(unique_labels))))
 
     lva = _build_label_vector_rows(label_vector, labels).T
     if ignore_non_finites:
@@ -847,4 +994,48 @@ def _build_label_vector_array(labels, label_vector, N=None, limits=None,
     use[indices] = True
 
     return (lva, use, offsets)
+
+
+def _solve_labels_single(flux, flux_uncertainties, coefficients, scatter,
+    offsets, indices, names, label_vector_indices, full_output=False, **kwargs):
+
+    use = (flux_uncertainties < kwargs.pop("max_uncertainty", np.inf)) \
+        * np.isfinite(coefficients[:, 0] * flux * flux_uncertainties)
+    Cinv = 1.0 / (scatter[use]**2 + flux_uncertainties[use]**2)
+    A = np.dot(coefficients[use, :].T, Cinv[:, None] * coefficients[use, :])
+    B = np.dot(coefficients[use, :].T, Cinv * flux[use])
+    initial_vector_p0 = np.linalg.solve(A, B)
+
+    # Get the initial guess of just the linear parameters.
+    # (Here we make a + 1 adjustment for the first '1' term)
+    p0 = initial_vector_p0[indices + 1]
+
+    logger.debug("Initial guess: {0}".format(dict(zip(names, p0))))
+
+    # Now we need to build up label vector rows by indexing relative to the
+    # labels that we will actually be solving for (in this case it's the
+    # variable 'names'), and not the labels as they are currently referenced
+    # in self._labels
+    
+    # Create the function.
+    def f(coefficients, *labels):
+        return np.dot(coefficients, _build_label_vector_rows(
+            label_vector_indices, labels).T).flatten()
+
+    # Optimise the curve to solve for the parameters and covariance.
+    full_output = kwargs.pop("full_output", False)
+    kwds = kwargs.copy()
+    kwds.setdefault("maxfev", 10000)
+    p_opt, covariance = op.curve_fit(f, coefficients[use],
+        flux[use], p0=p0, sigma=1.0/np.sqrt(Cinv), absolute_sigma=True,
+        **kwds)
+
+    # We might have solved for any number of parameters, so we will return a
+    # dictionary.
+    labels = { k: p_opt[i] + offsets[k] for i, k in enumerate(names) }
+    logger.debug("Final solution: {0}".format(labels))
+
+    if full_output:
+        return (labels, covariance)
+    return labels
 
