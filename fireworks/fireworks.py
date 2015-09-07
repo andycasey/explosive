@@ -17,8 +17,9 @@ logger = logging.getLogger("fireworks")
 
 class FireworksModel(cannon.CannonModel):
 
-    _trained_attributes = ("_coefficients", "_scatter", "_offsets", "_ew_model",
-        "_weak_line_mask", "_label_vector_description", "_atomic_lines")
+    _trained_attributes = ("_coefficients", "_scatter", "_offsets",
+        "_label_vector_description",
+        "_atomic_lines", "_stellar_parameter_labels")
     _data_attributes = ("_labels", "_wavelengths", "_fluxes",
         "_flux_uncertainties")
 
@@ -55,28 +56,29 @@ class FireworksModel(cannon.CannonModel):
             :class:`np.ndarray`
         """
 
-        super(self.__class__, self).__init__(labels, wavelengths, fluxes,
-            flux_uncertainties, verify)
+        super(FireworksModel, self).__init__(labels, fluxes, flux_uncertainties,
+            wavelengths=wavelengths, verify=verify)
 
 
     @property
     @model.requires_training_wheels
-    def labels(self):
+    def lv_labels(self):
         """
         Return a list of the labels involved in this model. This includes any
         labels in the description of the label vector, as well as any individual
         abundance labels.
         """
 
-        _, labels = self._get_linear_indices(self._label_vector_description,
-            full_output=True)
+        labels = super(self.__class__, self).lv_labels
+        # We check for _atomic_lines instead of _trained because we might train
+        # without any atomic lines.
         if self._atomic_lines is not None:
             labels += self._atomic_lines.keys()
         return labels
 
 
-    def train(self, label_vector_description, atomic_lines=None, X_H=False,
-        N=None, limits=None, pivot=False, **kwargs):
+    def train(self, label_vector_description, N=None, limits=None, pivot=False,
+        atomic_lines=None, X_H=True, stellar_parameter_labels=None, **kwargs):
         """
         Train a Cannon model based on the label vector description provided.
 
@@ -85,24 +87,6 @@ class FireworksModel(cannon.CannonModel):
 
         :type label_vector_description:
             str or list of str
-
-        :params atomic_lines: [optional]
-            Atomic absorption lines that should be modelled as part of the first
-            entry in the label vector. If given, this should be a dictionary
-            containing the label names that correspond to $\log_\epsilon(X)$
-            abundances in `CannonModel._labels` as keys, and the values should
-            be an `~astropy.table.Table` containing the atomic transitions for
-            that element.
-
-        :type atomic_lines:
-            dict
-
-        :param X_H: [optional]
-            Use abundances in X_H format. If set to `False`, then log(X)
-            abundance formats are assumed.
-
-        :type X_H:
-            bool
 
         :param N: [optional]
             Limit the number of stars used in the training set. If left to None,
@@ -124,23 +108,34 @@ class FireworksModel(cannon.CannonModel):
         :type pivot:
             bool
 
+        :params atomic_lines: [optional]
+            Atomic absorption lines that should be modelled as part of the first
+            entry in the label vector. If given, this should be a dictionary
+            containing the label names that correspond to $\log_\epsilon(X)$
+            abundances in `CannonModel._labels` as keys, and the values should
+            be an `~astropy.table.Table` containing the atomic transitions for
+            that element.
+
+        :type atomic_lines:
+            dict
+
+        :param X_H: [optional]
+            Use abundances in X_H format. If set to `False`, then log(X)
+            abundance formats are assumed.
+
+        :type X_H:
+            bool
+
         :returns:
             A three-length tuple containing the model coefficients, the scatter
             in each pixel, and the label offsets.
         """
 
-        # We'll need this later; store it. First sort by the species number.
-        self._atomic_lines = OrderedDict(sorted(atomic_lines.items(), 
-            key=lambda _: min(_[1]["species"])))
-        self._label_vector_description = label_vector_description
-
-        # Build the label vector array. Note that if `atomic_lines` are given,
-        # the first element of the label vector (which would be 1 otherwise)
-        # will need to be updated on a per-star basis.
 
         # Since building the atomic line models takes longer than building the
         # label vector array, we build the vector array first so that any errors
         # will appear first.
+        self._label_vector_description = label_vector_description
         lv = self._parse_label_vector_description(label_vector_description)
         lva, use, offsets = cannon._build_label_vector_array(self._labels, lv,
             N, limits, pivot)
@@ -150,15 +145,16 @@ class FireworksModel(cannon.CannonModel):
         scatter = np.nan * np.ones(N_pixels)
         coefficients = np.nan * np.ones((N_pixels, lva.shape[0]))
         weak_line_fluxes = np.ones((N_stars, N_pixels))
-        
-        # Any atomic lines to model?
-        if _check_atomic_lines(self._labels, self._atomic_lines):
 
-            N_species = len(self._atomic_lines)
-            N_transitions = sum(map(len, self._atomic_lines.values()))
+        # Any atomic lines to model?
+        atomic_lines = _validate_atomic_lines(self._labels, atomic_lines)
+        if atomic_lines:
+
+            N_species = len(atomic_lines)
+            N_transitions = sum(map(len, atomic_lines.values()))
 
             msg = []
-            for k, v in self._atomic_lines.items():
+            for k, v in atomic_lines.items():
                 msg.append("{0} (species {1}; {2} lines)".format(
                     k, ", ".join(map(str, set(v["species"]))), len(v)))
 
@@ -176,34 +172,29 @@ class FireworksModel(cannon.CannonModel):
             # We should calculate the expected EWs (and therefore fluxes) for
             # each atomic line for each star in the training set, because this
             # will form the first element of our label vector array.
-
-            teff_label = kwargs.pop("__label_teff", "TEFF")
-            logg_label = kwargs.pop("__label_logg", "LOGG")
-            fe_h_label = kwargs.pop("__label_fe_h", "FE_H")
-            all_stellar_parameters = np.vstack([
-                self._labels[teff_label],
-                self._labels[logg_label],
-                self._labels[fe_h_label]
-            ]).T
+            if stellar_parameter_labels is None:
+                stellar_parameter_labels = ["TEFF", "LOGG", "PARAM_M_H"]
+            all_stellar_parameters = np.vstack(
+                [self._labels[label] for label in stellar_parameter_labels]).T
 
             # [TODO] This part is unnecessarily slow. Speed it up.
             # [TODO] It's also probably catagorically wrong.
-            ew_model = {}
-            for label, transitions in self._atomic_lines.items():
+            atomic_line_model = {}
+            for label, transitions in atomic_lines.items():
                 ew_coefficients = atomic.approximate_atomic_transitions(
                     all_stellar_parameters, transitions, X_H=X_H, **kwargs)
-                ew_model[label] = (np.array(transitions["wavelength"]), ew_coefficients)
+                atomic_line_model[label] = (transitions, ew_coefficients)
 
             # Generate the weak line fluxes for each star.
             for i, stellar_parameters in enumerate(all_stellar_parameters):
-                for label, (wavelengths, ew_coefficients) in ew_model.items():
+                for label, (transitions, ew_coefficients) in atomic_line_model.items():
 
                     abundance = self._labels[label][i]
-                    for j, mu in enumerate(wavelengths):
-                        # The 10e-4 factor is to turn the EW from milliAngstroms
+                    for j, mu in enumerate(transitions["wavelength"]):
+                        # The 1e-3 factor is to turn the EW from milliAngstroms
                         # into Angstroms.
                         expected_ew = atomic._solve_equivalent_width(abundance,
-                            ew_coefficients[j], mu, stellar_parameters) * 10e-4
+                            ew_coefficients[j], mu, stellar_parameters) * 1e-3
 
                         # Translate this into a weak profile.
                         # EW = sqrt(2*pi) * amplitude * sigma
@@ -226,7 +217,7 @@ class FireworksModel(cannon.CannonModel):
             #raise a
 
         else:
-            ew_model = None
+            atomic_line_model = None
 
 
         assert N is None, "whoops?"
@@ -235,14 +226,11 @@ class FireworksModel(cannon.CannonModel):
             .format(self.__class__.__name__[:-5], N_stars, N_pixels)
         for i in utils.progressbar(range(N_pixels), pb_message, pb_size):
 
-            # Update the first element of the label vector array to include the
-            # predicted EWs.
-            fluxes = self._fluxes[use, i] / weak_line_fluxes[use, i]
-
             # Train the Cannon on the residuals of the data.
             # I *think* this is OK to do
             # (e.g., Hogg may be wrong??? -- famous last words?)
-            coefficients[i, :], scatter[i] = cannon._fit_pixel(fluxes,
+            coefficients[i, :], scatter[i] = cannon._fit_pixel(
+                self._fluxes[use, i] / weak_line_fluxes[use, i],
                 self._flux_uncertainties[use, i], lva, **kwargs)
 
             if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
@@ -250,13 +238,13 @@ class FireworksModel(cannon.CannonModel):
 
         # Save all of these to the model.
         self._trained = True
-        self._coefficients, self._scatter = coefficients, scatter
-        self._offsets, self._ew_model = offsets, ew_model
-        # Keep a record of pixels that are not affected by weak line fluxes at
-        # all. These can be used for the initial guess of stellar parameters.
-        self._weak_line_mask = np.all(weak_line_fluxes == 1, axis=0)
+        self._coefficients, self._scatter, self._offsets \
+            = coefficients, scatter, offsets
+        self._atomic_lines, self._stellar_parameter_labels \
+            = atomic_line_model, stellar_parameter_labels
 
-        return (coefficients, scatter, offsets, ew_model, weak_line_fluxes)
+        return (coefficients, scatter, offsets, atomic_line_model,
+            weak_line_fluxes)
 
 
     @model.requires_training_wheels
@@ -267,7 +255,7 @@ class FireworksModel(cannon.CannonModel):
         :param labels:
             The labels required for the trained model. This should be a N-length
             list matching the number of unique terms in the model, including any
-            atomic (weak) line abundances in the order given by the `self.labels`
+            atomic (weak) line abundances in the order given by `self.lv_labels`
             property. Alternatively, labels can be explicitly given as keyword
             arguments.
 
@@ -286,51 +274,46 @@ class FireworksModel(cannon.CannonModel):
         except (TypeError, IndexError):
             labels = [labels]
 
-        label_names = self.labels
+        names = self.lv_labels
         if labels is None:
-            # Must be given as keyword arguments.
-            labels = [labels_as_kwargs[name] for name in label_names]
-
-        else:
-            if len(labels) != len(label_names):
-                raise ValueError("expected number of labels is {0}, and {1} "
-                    "were given: {2}".format(len(label_names), len(labels),
-                        ", ".join(label_names)))
+            labels = [labels_as_kwargs[name] for name in names]
+        elif len(labels) != len(names):
+            raise ValueError("expected number of labels is {0}, and {1} were "\
+                "given: {2}".format(len(names), len(labels),
+                    ", ".join(names)))
 
         # Generate the Cannon-ical flux.
         label_vector_indices = self._parse_label_vector_description(
             self._label_vector_description, return_indices=True,
-            __columns=label_names)
+            __columns=names)
 
+        offsets = np.array([self._offsets[names] for names in namess])
         fluxes = np.dot(self._coefficients, cannon._build_label_vector_rows(
-            label_vector_indices, labels).T).flatten()
+            label_vector_indices, labels - offsets).T).flatten()
 
         # Include treatment of any atomic lines.
         if self._atomic_lines is not None:
 
             N = len(self._atomic_lines)
-            stellar_parameters = labels[:3]
-            logger.warn("No explicit reference to stellar parameters")
-            # [TODO] No explicit reference to stellar parameter labels  
-
+            stellar_parameters = [labels[labels.index(_)] \
+                for _ in self._stellar_parameter_labels]
+            
             weak_line_fluxes = np.ones(cannonical_flux.size)
             for i, (label, abundance) \
-            in enumerate(zip(self._ew_model.keys(), labels[-N:])):
+            in enumerate(zip(self._atomic_lines.keys(), labels[-N:])):
 
-                wavelengths, ew_coefficients = self._ew_model[label]
+                transitions, ew_coefficients = self._atomic_lines[label]
 
-                for j, mu in enumerate(wavelengths):
-                    # The 10e-4 factor is to turn the EW from milliAngstroms
-                    # into Angstroms.
+                for j, mu in enumerate(transitions["wavelength"]):
+                    # The 1e-3 factor is to turn the EW from milliAngstroms to A
                     expected_ew = atomic._solve_equivalent_width(abundance,
-                        ew_coefficients[j], mu, stellar_parameters) * 10e-4
+                        ew_coefficients[j], mu, stellar_parameters) * 1e-3
 
                     p_sigma = 0.35
 
-                    # Translate this into a weak profile.
+                    # Translate this into a Gaussian profile.
                     # EW = sqrt(2*pi) * amplitude * sigma
                     # we know the central wavelength, we know the sigma
-                    # (EW is in mA, and we want A)
                     amplitude = expected_ew/(np.sqrt(2*np.pi) * p_sigma)
                     weak_line_fluxes *= 1. \
                         - amplitude * np.exp(-(self._wavelengths - mu)**2 \
@@ -371,12 +354,11 @@ class FireworksModel(cannon.CannonModel):
         # (This is very much incorrect for non-linear terms).
         finite = \
             np.isfinite(self._coefficients[:, 0] * flux * flux_uncertainties)
-        p0mask = finite #self._weak_line_mask * finite
-        Cinv = 1.0 / (self._scatter[p0mask]**2 + flux_uncertainties[p0mask]**2)
-        A = np.dot(self._coefficients[p0mask, :].T,
-            Cinv[:, None] * self._coefficients[p0mask, :])
-        B = np.dot(self._coefficients[p0mask, :].T,
-            Cinv * flux[p0mask])
+        Cinv = 1.0 / (self._scatter[finite]**2 + flux_uncertainties[finite]**2)
+        A = np.dot(self._coefficients[finite, :].T,
+            Cinv[:, None] * self._coefficients[finite, :])
+        B = np.dot(self._coefficients[finite, :].T,
+            Cinv * flux[finite])
         initial_vector_p0 = np.linalg.solve(A, B)
 
         # p0 contains all coefficients, but we only want the linear terms to
@@ -388,8 +370,8 @@ class FireworksModel(cannon.CannonModel):
 
         # Get the initial guess of just the linear parameters.
         # (Here we make a + 1 adjustment for the first '1' term)
-        parameters, p0 = list(names), initial_vector_p0[indices + 1]
-        logger.debug("Initial guess: {0}".format(dict(zip(parameters, p0))))
+        p0 = initial_vector_p0[indices + 1]
+        logger.debug("Initial guess: {0}".format(dict(zip(names, p0))))
 
         # Now we need to build up label vector rows by indexing relative to the
         # labels that we will actually be solving for (in this case it's the
@@ -402,7 +384,7 @@ class FireworksModel(cannon.CannonModel):
         # Do we have individual line abundances to consider?
         if self._atomic_lines is not None:
             # Need to extend p0 to include individual abundances.
-            parameters.extend(self._atomic_lines.keys())
+            names.extend(self._atomic_lines.keys())
 
             # Just take the median of the abundances, that should be OK for an
             # initial guess (at any stellar parameters).
@@ -412,31 +394,27 @@ class FireworksModel(cannon.CannonModel):
             p0 = np.hstack([p0, [np.nanmedian(self._labels[p]) \
                 for p in self._atomic_lines.keys()]])
 
-
-        logger.warn("NO EXPLICIT REFERENCES TO STELLAR PARAMETER NAMES")
-
-        # [TODO] Hacky as shhit
-        self._tmp_mask = finite
+        self._finite_mask = finite
 
         # Create the function.
         def f(coefficients, *labels):
             # Build the weak lines spectrum.
 
-            stellar_parameters = labels[:3]
-            # [TODO] No explicit reference to stellar parameter labels  
+            stellar_parameters = [labels[self.lv_labels.index(_)] \
+                for _ in self._stellar_parameter_labels]
 
             weak_line_fluxes = np.ones(flux.size)
-            N = len(self._atomic_lines) if self._atomic_lines is not None else 0
+            N = len(self._atomic_lines)
             for i, (label, abundance) \
-            in enumerate(zip(self._ew_model.keys(), labels[-N:])):
+            in enumerate(zip(self._atomic_lines.keys(), labels[-N:])):
 
-                wavelengths, ew_coefficients = self._ew_model[label]
+                transitions, ew_coefficients = self._atomic_lines[label]
 
-                for j, mu in enumerate(wavelengths):
-                    # The 10e-4 factor is to turn the EW from milliAngstroms
+                for j, mu in enumerate(transitions["wavelength"]):
+                    # The 1e-3 factor is to turn the EW from milliAngstroms
                     # into Angstroms.
                     expected_ew = atomic._solve_equivalent_width(abundance,
-                        ew_coefficients[j], mu, stellar_parameters) * 10e-4
+                        ew_coefficients[j], mu, stellar_parameters) * 1e-3
 
                     p_sigma = 0.35
 
@@ -449,9 +427,9 @@ class FireworksModel(cannon.CannonModel):
                         - amplitude * np.exp(-(self._wavelengths - mu)**2 \
                             / (2. * p_sigma**2))
 
-            return weak_line_fluxes[self._tmp_mask] *  np.dot(coefficients, cannon._build_label_vector_rows(
-                label_vector_indices, labels[:-N]).T).flatten()
-
+            return weak_line_fluxes[self._finite_mask] \
+                * np.dot(coefficients, cannon._build_label_vector_rows(
+                    label_vector_indices, labels[:-N]).T).flatten()
 
         # Optimise the curve to solve for the parameters and covariance.
         full_output = kwargs.pop("full_output", False)
@@ -462,47 +440,19 @@ class FireworksModel(cannon.CannonModel):
             flux[finite], p0=p0, sigma=1.0/np.sqrt(Cinv), absolute_sigma=True,
             **kwds)
 
-        del self._tmp_mask
+        # Remove the temporary finite mask.
+        del self._finite_mask
         
-
-        # We might have solved for any number of parameters, so we return a
-        # dictionary.
-        logger.debug("TODO: apply offsets as required")
-        p_opt = dict(zip(parameters, p_opt))
-
-        logger.debug("Final solution: {0}".format(p_opt))
+        # We might have solved for any number of parameters, so we return a dict
+        p_opt = { k: p_opt[i] + self._offsets[k] for i, k in enumerate(names) }
+        logger.debug("Final solution: {}".format(p_opt))
 
         if full_output:
             return (p_opt, p_covariance)
         return p_opt
 
 
-    @model.requires_training_wheels
-    def plot_flux_residuals(self, parameter=None, percentile=False, **kwargs):
-        """
-        Plot the flux residuals as a function of an optional parameter or label.
-
-        :param parameter: [optional]
-            The name of a column provided in the labels table for this model. If
-            none is provided, the spectra will be sorted by increasing $\chi^2$.
-
-        :type parameter:
-            str
-
-        :param percentile: [optional]
-            Display model residuals as a percentage of the flux difference, not
-            in absolute terms.
-
-        :type percentile:
-            bool
-
-        :returns:
-            A figure showing the flux residuals.
-        """
-        return plot.flux_residuals(self, parameter, percentile, **kwargs)
-
-
-def _check_atomic_lines(labels, atomic_lines):
+def _validate_atomic_lines(labels, atomic_lines):
     """
     Check the atomic line data provided.
     """
@@ -514,11 +464,13 @@ def _check_atomic_lines(labels, atomic_lines):
         raise TypeError("atomic lines should be a dictionary with log(X) "\
             " abundance labels (as keys) and transition tables as values")
 
-    num_transitions = 0
+    atomic_lines = OrderedDict(sorted(atomic_lines.items(), 
+        key=lambda _: min(_[1]["species"])))
+        
+    valid_atomic_lines = {}
     # Check that the keys actually exist in the _labels table.
     for label, transitions in atomic_lines.items():
 
-        num_transitions += len(transitions)
         if label not in labels.dtype.names:
             raise IndexError("cannot find atomic line abundance label {0} "\
                 "in the labels table".format(label))
@@ -539,6 +491,8 @@ def _check_atomic_lines(labels, atomic_lines):
                 "species in the transitions table: {1}".format(label,
                     ", ".join(species)))
 
-    return num_transitions > 0
+        valid_atomic_lines[label] = transitions
+
+    return valid_atomic_lines
             
 

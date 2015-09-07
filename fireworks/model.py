@@ -160,7 +160,7 @@ class BaseModel(object):
 
 
     @property
-    def labels(self):
+    def lv_labels(self):
         """ This should be overwritten by the parent model. """
         raise WTFError("is this your first day?")
 
@@ -320,7 +320,7 @@ class BaseModel(object):
         # Contents is: trained attributes, data hash, data trained on
         trained_contents = dict(zip(cls._trained_attributes, contents))
         N = len(trained_contents)
-        expected_data_hash = contents[N]
+        expected_data_hash = contents[N-1]
 
         if N + 1 >= len(contents):
             raise TypeError("saved model in {} does not include data".format(
@@ -328,14 +328,14 @@ class BaseModel(object):
 
         # There was data as well.
         if verify and expected_data_hash is not None:
-            actual_data_hash = _short_hash(contents[N + 1:])
+            actual_data_hash = _short_hash(contents[N:])
             if actual_data_hash != expected_data_hash:
                 raise ValueError("expected data hash ({0}) is different ({1})"\
                     .format(expected_data_hash, actual_data_hash))
 
         # Create the model by initialising it with the data attributes.
         model = cls(**dict(zip([_[1:] for _ in cls._data_attributes],
-            contents[N + 1:])))
+            contents[N:])))
 
         # Set the training attributes.
         for k, v in trained_contents.items():

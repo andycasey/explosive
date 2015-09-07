@@ -24,7 +24,7 @@ class CannonModel(model.BaseModel):
         = ("_labels", "_wavelengths", "_fluxes", "_flux_uncertainties")
 
 
-    def __init__(self, labels, wavelengths, fluxes, flux_uncertainties,
+    def __init__(self, labels, fluxes, flux_uncertainties, wavelengths=None,
         verify=True):
         """
         Initialise a Cannon model.
@@ -57,7 +57,7 @@ class CannonModel(model.BaseModel):
             :class:`~np.ndarray`
         """
 
-        super(self.__class__, self).__init__(labels, fluxes, flux_uncertainties,
+        super(CannonModel, self).__init__(labels, fluxes, flux_uncertainties,
             wavelengths=wavelengths, verify=verify)
 
 
@@ -197,7 +197,7 @@ class CannonModel(model.BaseModel):
             if len(term) == 1 and term[0][1] == 1:
                 names.append(term[0][0])
                 indices.append(i)
-        names, indices = tuple(names), np.array(indices)
+        indices = np.array(indices)
 
         if full_output:
             return (indices, names)
@@ -325,6 +325,18 @@ class CannonModel(model.BaseModel):
                 for i, (f, u) in enumerate(zip(flux, flux_uncertainties)):
                     labels[i, :] = _solve_labels_single(f, u, *args, **kwargs)
 
+        return labels
+
+
+    @property
+    @model.requires_training_wheels
+    def lv_labels(self):
+        """
+        Return a list of the labels used to describe the model label vector. 
+        """
+
+        _, labels = self._get_linear_indices(self._label_vector_description,
+            full_output=True)
         return labels
 
 

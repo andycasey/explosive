@@ -14,7 +14,7 @@ from oracle import photospheres, synthesis
 logger = logging.getLogger("fireworks")
 
 
-def approximate_atomic_transitions(stellar_parameters, transitions, X_H=False,
+def approximate_atomic_transitions(stellar_parameters, transitions, X_H=True,
     ew_points=None, photosphere_kwargs=None, synthesis_kwargs=None, **kwargs):
     """
     Return functions to approximate the equivalent width of atomic transitions
@@ -214,7 +214,7 @@ def _atomic_line_abundances(stellar_parameters, transitions, X_H=False,
                 "range ({2}, {3})".format(parameter, i, lower, upper))
 
     # Generate values for parameters, where necessary.
-    if ew_points is None: ew_points = np.linspace(10, 300, 30)
+    if ew_points is None: ew_points = np.linspace(10, 300, 15)
     synthesis_kwargs = synthesis_kwargs or {}
     photosphere_kwargs = photosphere_kwargs or {}
 
