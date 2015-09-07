@@ -481,8 +481,7 @@ class CannonModel(model.BaseModel):
         inferred_test_labels = np.nan * np.ones((N_realisations, N_labels))
         expected_test_labels = np.ones((N_realisations, N_labels))
 
-        # Go through each combination.
-        # [TODO] Thread everything.
+        debug = kwargs.get("debug", False)
         for i in range(N_realisations):
             logger.info("Doing cross-validation realisation {0}/{1} on a test "\
                 "set containing 1 star".format(i + 1, N_realisations))
@@ -503,6 +502,7 @@ class CannonModel(model.BaseModel):
             except:
                 logger.exception("Exception in solving star with index {0} in "\
                     "cross-validation".format(i))
+                if debug: raise
 
             else:
                 # Save inferred test labels.

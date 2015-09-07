@@ -6,6 +6,7 @@
 __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import logging
+import multiprocessing as mp
 import numpy as np
 from collections import OrderedDict
 
@@ -132,6 +133,9 @@ class FireworksModel(cannon.CannonModel):
         """
 
 
+        if stellar_parameter_labels is None:
+                stellar_parameter_labels = ["TEFF", "LOGG", "PARAM_M_H"]
+        
         # Since building the atomic line models takes longer than building the
         # label vector array, we build the vector array first so that any errors
         # will appear first.
@@ -172,8 +176,6 @@ class FireworksModel(cannon.CannonModel):
             # We should calculate the expected EWs (and therefore fluxes) for
             # each atomic line for each star in the training set, because this
             # will form the first element of our label vector array.
-            if stellar_parameter_labels is None:
-                stellar_parameter_labels = ["TEFF", "LOGG", "PARAM_M_H"]
             all_stellar_parameters = np.vstack(
                 [self._labels[label] for label in stellar_parameter_labels]).T
 
@@ -204,41 +206,64 @@ class FireworksModel(cannon.CannonModel):
                         weak_line_fluxes[i] *= 1. \
                             - amplitude * np.exp(-(self._wavelengths - mu)**2 \
                                 / (2. * p_sigma**2))
-                    
-
-            import matplotlib.pyplot as plt
-            plt.close("all")
-
-            fig, ax = plt.subplots()
-            ax.plot(self._wavelengths, weak_line_fluxes[0], c='b', zorder=100)
-            ax.plot(self._wavelengths, self._fluxes[0], c='k')
-
-            ax.plot(self._wavelengths, self._fluxes[0] / weak_line_fluxes[0], c='r', zorder=1000)
-            #raise a
 
             # Update the offsets to be zero for atomic lines.
             offsets.update({ k: 0 for k in atomic_lines })
 
+        elif kwargs.get("_atomic_line_model", None):
+            atomic_line_model = kwargs.pop("_atomic_line_model")
+            offsets.update({ k: 0 for k in atomic_line_model })
+
         else:
             atomic_line_model = None
 
-
         assert N is None, "whoops?"
+        N_threads = int(max([1, kwargs.pop("threads", 1)]))
         pb_size = 100 if kwargs.pop("__progressbar", True) else 0
-        pb_message = "Training {0} model from {1} stars with {2} pixels:\n"\
-            .format(self.__class__.__name__[:-5], N_stars, N_pixels)
-        for i in utils.progressbar(range(N_pixels), pb_message, pb_size):
+        if N_threads == 1:
+            pb_message = "Training {0} model from {1} stars with {2} pixels:\n"\
+                        .format(self.__class__.__name__[:-5], N_stars, N_pixels) 
+            for i in utils.progressbar(range(N_pixels), pb_message, pb_size):
+                if np.isfinite(self._fluxes[use, i] \
+                    * self._flux_uncertainties[use, i]).sum() == 0:
+                    continue
 
-            # Train the Cannon on the residuals of the data.
-            # I *think* this is OK to do
-            # (e.g., Hogg may be wrong??? -- famous last words?)
-            coefficients[i, :], scatter[i] = cannon._fit_pixel(
-                self._fluxes[use, i] / weak_line_fluxes[use, i],
-                self._flux_uncertainties[use, i], lva, **kwargs)
+                # Train the Cannon on the residuals of the data.
+                # I *think* this is OK to do
+                # (e.g., Hogg may be wrong??? -- famous last words?)
+                coefficients[i, :], scatter[i] = cannon._fit_pixel(
+                    self._fluxes[use, i] / weak_line_fluxes[use, i],
+                    self._flux_uncertainties[use, i], lva, **kwargs)
 
-            if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
-                logger.warn("No finite coefficients at pixel {}!".format(i))
+                if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
+                    logger.warn("No finite coefficients at pixel {}!".format(i))
 
+        else:
+            pb_mg = "Training Cannon model in {0} parallel threads from {1} s"\
+                "tars with {2} pixels each".format(N_threads, N_stars, N_pixels)
+
+            # Summertime!
+            processes = []
+            pool = mp.Pool(N_threads)
+            for i in range(N_pixels):
+                if not np.any(np.isfinite(
+                    self._fluxes[use, i] * self._flux_uncertainties[use, i])):
+                    continue
+
+                p = pool.apply_async(_fit_pixel, args=(self._fluxes[use, i],
+                    self._flux_uncertainties[use, i], lva), kwds=kwargs)
+                processes.append((i, p))
+
+            # Collate the results.
+            for i, p in utils.progressbar(processes, message=pb_mg,
+                size=N_pixels if pb_show else -1):
+                coefficients[i, :], scatter[i] = p.get()
+                if not np.any(np.isfinite(scatter[i] * coefficients[i, :])):
+                    logger.warn("No finite coefficients at pixel {}".format(i))
+
+            # Winter is coming.
+            pool.close()
+            pool.join()
 
         # Save all of these to the model.
         self._trained = True
@@ -453,6 +478,74 @@ class FireworksModel(cannon.CannonModel):
         if full_output:
             return (p_opt, p_covariance)
         return p_opt
+
+
+    @model.requires_training_wheels
+    def cross_validate(self, label_vector_description=None, **kwargs):
+        """
+        Perform leave-one-out cross-validation on the trained model.
+
+        :params label_vector_description: [optional]
+            The human-readable form of the label vector description. If None is
+            given, the currently trained label vector description is used.
+
+        :type label_vector_description:
+            str
+
+        :returns:
+            A two-length tuple containing an array of the expected train labels
+            for each star, and the inferred labels.
+        """
+
+        # Initialise arrays.
+        if label_vector_description is None:
+            label_vector_description = self._label_vector_description
+
+        label_names = self.lv_labels
+        N_realisations, N_labels = self._fluxes.shape[0], len(label_names)
+        inferred_test_labels = np.nan * np.ones((N_realisations, N_labels))
+        expected_test_labels = np.ones((N_realisations, N_labels))
+
+        debug = kwargs.get("debug", False)
+        for i in range(N_realisations):
+            logger.info("Doing cross-validation realisation {0}/{1} on a test "\
+                "set containing 1 star".format(i + 1, N_realisations))
+            
+            mask = np.ones(N_realisations, dtype=bool)
+            mask[i] = False
+
+            # Create a model to use so we don't overwrite self.
+            model = self.__class__(self._labels[mask], self._wavelengths,
+                self._fluxes[mask, :], self._flux_uncertainties[mask, :])
+            # Directly provide the atomic line model, since this won't change
+            # (almost at all) when one star is removed.
+            model.train(label_vector_description,
+                stellar_parameter_labels=self._stellar_parameter_labels,
+                _atomic_line_model=self._atomic_lines, **kwargs)
+
+            # Solve for the one left out.
+            try:
+                inferred_labels = model.solve_labels(
+                    self._fluxes[~mask, :].flatten(),
+                    self._flux_uncertainties[~mask, :].flatten())
+            except:
+                logger.exception("Exception in solving star with index {0} in "\
+                    "cross-validation".format(i))
+                if debug: raise
+
+            else:
+                # Save inferred test labels.
+                for j, name in enumerate(label_names):
+                    inferred_test_labels[i, j] = inferred_labels[name]
+
+            finally:
+                # Save expected test labels.
+                for j, name in enumerate(label_names):
+                    expected_test_labels[i, j] = self._labels[~mask][name]
+                
+        return (label_names, expected_test_labels, inferred_test_labels)
+
+
 
 
 def _validate_atomic_lines(labels, atomic_lines):
