@@ -102,7 +102,10 @@ These analyses also have strict limitations in validity, and a range of options 
 % introducing chemical abundances into TC is not trivial
 % high dimensionality
 
+This \article{} is organised as follows. In Section \ref{sec:model} we briefly describe the existing foundations for \tc{} and demonstrate from a theoretical perspective as to why the model flexibility is sufficient to accurately represent spectral fluxes. We also outline how to include individual atomic lines within an existing \textit{Cannon} model. In Section \ref{sec:apogee} we apply a detailed chemical abundance \textit{Cannon} to the APOGEE Data Release (DR) 12 spectra. We discuss the suitability and limitations of the method in Section \ref{sec:discussion}. In Section \ref{sec:conclusion} we conclude with a summary of our findings.
+
 \section{Model}
+\label{sec:model}
 
 \tc{} provides a purely data-driven approach to stellar label determination. The
 spectral model describes the flux $f_{n\lambda}$ (for star $n$) at a pixel with rest-wavelength $\lambda$ to be a function
@@ -150,41 +153,27 @@ approximate synthesis calculations with comparable fidelity, and thus \textit{ho
 In stellar spectroscopy we are frequently presented with the idea of the equivalent width (EW; $\mathcal{W}$) of an absorption line. Consider a single (unblended) atomic line at rest wavelength $\lambda_r$, where the flux values at and surrounding $\lambda_r$ ($f_{n\lambda_r-{\delta}},f_{n\lambda_{r+\delta}}$) are well-approximated by a \textit{Cannon} spectral model. Because the absorption line is well-represented by a Gaussian profile at this spectral resolution, the flux at $\lambda_r$ is related to the EW of the line through
 
 \begin{equation}
-\mathcal{W} = \sigma\cdot{}f_{n\lambda_r}\sqrt{2\pi}
+\mathcal{W} = \sigma{}\sqrt{2\pi}(1 - f_{n\lambda_r})
+\label{eq:ew-flux}
 \end{equation}
 
-where $\sigma$ is the standard deviation of the profile, which is well-approximated by width of the line spread function (LSF) kernel. That is to say, for resolutions $\mathcal{R} \lesssim 20,000$, $\sigma$ is dominated by the spectrograph, not the absorption line or the labels (stellar parameters).
+where $\sigma$ is the standard deviation of the profile, which is well-approximated by width of the line spread function (LSF) kernel. That is to say, for resolutions $\mathcal{R} \lesssim 20,000$, $\sigma$ is dominated by the spectrograph, not the absorption line or the labels (stellar parameters). If we presume that the LSF is well-known, or reasonably approximated by a fixed spectral resolution $\mathcal{R}$, then it is clear to see that \tc{} is implicitly modelling the EW of an atomic line as a function of stellar labels, and modelling spectral flux through a per-pixel scaling of $\sigma$. Indeed, the success of \tc{} suggests that the EW of an atomic line can also be well-approximated by a simple model relating the labels (i.e., stellar parameters and abundance of a single species). If such a model can be constructed and appropriately included within the existing \textit{Cannon} framework, it would permit the determination of detailed chemical abundances, whilst maintaining the flexibility in training on labels with poorly-known relationships on spectral fluxes (e.g., ages).
 
+We note that Equation \ref{eq:ew-flux} does not imply that \tc{} is limited in applicability to low-resolution ($\mathcal{R} \lesssim 20,000$) spectra. Quite the opposite. \tc{} is sufficiently flexible that in extremely high-resolution spectra, where absorption lines are more closely represented by Lorentzian or Hertzting functions, the flux values $f_{n\lambda}$ in the wings of a strong line are presumably still well-modelled by \tc{}. Indeed, the line $\mathcal{W}$ would still be predictable with high-fidelity, implying that the coefficients $\cv$ for pixels in the wings just scale in a different way. Equation \ref{eq:ew-flux} allows us to directly translate $\mathcal{W}$ to $f_{n\lambda}$, thereby accounting for the flux contribution from a single atomic line. If the spectral resolving power were sufficiently high such that the absorption profiles appeared Lorentzian in nature, some prior information on the shape $\gamma$ would be required to translate $\mathcal{W}$ to $f_{n\lambda}$. Thus, while Equation \ref{eq:ew-flux} allows the translation from $\mathcal{W}$ to $f_{n\lambda}$ for $\mathcal{R} \lesssim 20,000$ spectra, given some knowledge of the LSF, no limiting interpretation about \tc{} should be drawn. Importantly, all future stellar spectroscopic surveys  currently expect $\mathcal{R} \lesssim 20,000$, in the perfect Gaussian-profile regime for this extension of \tc{}.
 
+% Show an example? The example could have a figure showing some spectral fluxes for a clean line, which is modelled by the cannon (with an example model spectrum) and then show the same model being used to train on EW.
+%An example of this is shown in Figure \ref{fig:cannon-ew-relation}, where a quadratic-in-labels \textit{Cannon} model is used to model spectral fluxes for X stars across the HR diagram. The data have been trained 
 
+Knowing that a simple model can relate the a single line abundance [X/H] and integrated strength of an atomic line $\mathcal{W}$, given stellar parameter labels, it is intriguing to ask whether model atmosphere relations and the theory of spectral line formation can guide the level of model complexity required.
 
-% where the flux values $f_{n\lambda}$ are well-approximated by the given spectral model. 
-
-
-
-% Things are Gaussian, therefore EW related.
 % How does EW of a line change w.r.t. stellar parameters
-% If we had a model for a single line, how could this be included.
+\textbf{Description of how EW for a single line will change w.r.t stellar parameters}
 
+We now have a functional form of a model that relates $\mathcal{W}$ to $\log_\epsilon\left({\textrm X}\right)$ (or a scaled-solar [X/H] value), given the stellar parameters, which themselves are part of the set of $K$ labels. It is interesting to note that Equation \ref{eq:ew-logx-model} is not dissimilar to the quadratic-in-labels model used by \citet{Ness15a} for APOGEE data. With only the prior knowledge that \textit{a simple model of the labels can predict spectral fluxes}, we have derived the appropriate functional form for a single absorption line.
 
-
-% The reason
-%extends past model flexibility: one could imagine a similar coefficient vector
-%$\cv$ with a different functional form of the label vector $\lv$ (e.g., an
-%extreme case might be $\lv \equiv [1, {\rm [M/H]}^{T_{\rm eff}},
-%\log{g}^{T_{\rm eff}}]$) which would probably be incapable of describing
-%spectral fluxes with any fidelity.
-
-
-
-
-% Consider a single line.
-
-% This is why we should also be able to model the EW->log(X) with a Cannon-like model.
-
+% How do we include this atomic line model.
 % However this is complex because if we extended this to infinity, we would need an infinity of blended lines, etc.
 
-%
 
 
 %Utilising a simple polynomial model to predict spectral fluxes is a distinctive
@@ -203,22 +192,6 @@ where $\sigma$ is the standard deviation of the profile, which is well-approxima
 
 % Solving for coefficients and scatter term.
 
-
-Thus far the applications
-have been limited to stellar spectra with spectral resolving powers of 20,000
-or less. In this regime, the profiles of weak (linearly-responding) spectral lines
-are well-represented by Gaussian profiles.
-
-% The Cannon is approximating spectral synthesis. Done for R ~ 20k spectra
-% Since all Gaussian and flux value is linearly related to EW, it is reasonable
-% to expect the EW of an individual line can also be approximated with a
-% model like TC.
-
-
-\textbf{Description of the model of EW formation, and how this changes as a function of teff, logg, mh}
-
-
-We now have a functional form for how $W$ and [X/H] (or $\log_{\epsilon}(X)$) are related, given some stellar parameters, which themselves are part of the set of $K$ labels. 
 
 
 Thus, we have a reasonable form of how EW, log(A) change with respect to
