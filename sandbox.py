@@ -188,7 +188,6 @@ atomic_lines = {
 
 }
 label_vector_description = "TEFF^4 TEFF^3 TEFF^2 TEFF LOGG LOGG^2 TEFF*LOGG TEFF^2*LOGG TEFF*LOGG^2 PARAM_M_H PARAM_M_H*TEFF PARAM_M_H*TEFF^2 PARAM_ALPHA_M PARAM_M_H*PARAM_ALPHA_M" 
-
 """
 temp_filename = "fireworks-Mg+Al+Si+V+Ni.pkl"
 
@@ -201,6 +200,7 @@ if not os.path.exists(temp_filename):
 else:
     model = fireworks.FireworksModel.from_filename(temp_filename)
 
+print("Done")
 label_names, expected_labels, inferred_labels = model.label_residuals
 """
 
