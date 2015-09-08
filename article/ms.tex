@@ -13,6 +13,10 @@
 \newcommand\wv{\mathbf{w_n}}
 \newcommand\given{|}
 
+\newcommand\teff{$T_{\rm eff}$}
+\newcommand\logg{$\log{g}$}
+\newcommand\mh{${\mathrm [M/H]}$}
+
 \title[Cannon Chemistry]{Detailed Chemical Abundances with \tc} 
 % Some arrangement of the following authors:
 \author[Casey et al.]{A.~R.~Casey$^1$, M.~Ness$^2$, G.~Gilmore$^1$,
@@ -37,7 +41,7 @@ $^4$Center for Data Science, New York University, 726 Broadway, 7th Floor,
 \label{firstpage}
 
 \begin{abstract}
-More than 15 million stellar spectra are expected to be acquired by surveys in
+More than 15 million stellar spectra are expected to be acquired by ground-based surveys in
 the coming decade. The detailed chemical abundance analysis of these data poses
 a significant challenge. \tc provides a purely data-driven
 approach to stellar parameter (label) determination. Cross-validation tests
@@ -62,6 +66,28 @@ measurements of 15 elements in Z APOGEE spectra from DR12.
 \end{keywords}
 
 \section{Introduction}
+\label{sec:introduction}
+
+Ground-based stellar spectroscopic surveys have enormous scientific potential. Key absorption features in stellar spectra permit inferences on the internal structure of stars and their detailed chemical composition. Given a large enough sample of stars, these inferences can directly guide or constrain models over a large range of physical scales: the formation of planets, stars and clusters, supernovae yields and nucleosynthetic pathways, as well as the large scale evolution of the Milky Way. For these reasons an increasing number of stellar spectroscopic surveys are being undertaken, with each survey generation increasing in sample size \citep{gaia_eso; galah; lamost; apogee; 4most}.
+
+% Data have outgrown the methods.
+In some ways, the spectroscopic data have outgrown the methods used to analyse them. High-resolution (R > 20,000) stellar spectroscopy is colloquially considered to be a `dark art': analyses are carefully performed by an expert spectroscopist, who themselves were trained by an expert in exactly where the stellar continuum should be placed, and which atomic lines are considered 'clean' or 'dirty'. This work is equally impressive as it is subjective: the best spectroscopists host an encyclopaedic knowledge of atomic absorption lines with decades of experience, yet in blind-tests their decisions of where to place the continuum quickly becomes the most dominant source of systematic error.
+% Lot of unextracted information in these spectra (e.g., mass, ages)
+
+% Chemical abundance analysis takes time.
+Classical spectroscopic analyses are time-intensive both in human and computing resources. The Gaia-ESO Survey has been particularly instrumental in minimising the human resources required for analysis: all analysis codes of FGK stars employed in Gaia-ESO are now completely automatised. The computing challenge remains: some analysis codes take up to one hour (single core) to determine stellar parameters (\teff, \logg, \mh) for one star. Given the data scale (e.g., $\sim$400 stars observed simultaneously with HERMES), this poses a modest computational problem.
+
+% These analysis techniques are not optimal, either.
+These analyses also have strict limitations in validity, and a range of options are available. The community standard is to perform chemical abundance analyses using 1D model photospheres under the assumption of local thermal equilibrium (LTE). There are a number of photospheric models available. Detailed information about the species (atomic and molecular) opacities is required, and partition functions are usually approximated from polynomials. Atomic data (e.g., oscillator strengths) must be well-known, and the treatment of Stark and XX broadening must be carefully included. Results are further sensitive to the manner in which the equation of state was solved. Simply put, there are many things to consider for a careful analysis.
+
+% TC is in stark contrast to these methods
+% It's fast, accurate and precise.
+
+% It ignores physics.
+\tc{} falls into the regime of supervised machine learning. The results obtained by \tc{} thus far are extremely impressive, particularly when it is considered that the model ignores everything learned about atomic physics and stellar spectra since the names' inconception 100 years ago. There is no knowledge of stars, no input on interactions between fields and particles, nothing considering spectral line formation, and no input of atomic data, opacities, partition functions or depth-dependent photospheric quantities. Only a polynomial model of stellar parameter labels is required in order to reasonably approximate expensive spectral syntheses. However because \tc is purely data-driven, there is a missing link to physics.
+
+% Including chemical abundances into TC is non-trivial.
+
 
 % stellar parameter and chemical abundance analysis take time
 % equation of state, radiative transfer & spectral synthesis of multiple lines
@@ -86,9 +112,9 @@ This form is flexible: the label vector $\lv$ may be linear in just a few common
 labels (e.g., effective temperature $T_{\rm eff}$, surface gravity $\log{g}$, and
 metallicity [M/H]\footnote{\citet{Ness2015} use [Fe/H] in $\lv$, but for the 
 sake of distinguishing between overall metallicity and individual abundances,
-we opt for [M/H] to describe overall metallicity throughout this \article{}} 
-or a complex combination of all $K$ available labels, some of which have an
- unknown or non-trivial dependence with spectral fluxes \citep[e.g., mass, 
+we opt for [M/H] to describe overall metallicity throughout this \article{}})
+or a complex combination of all $K$ available labels, some of which may have an
+ unknown or non-trivial relationship with spectral fluxes \citep[e.g., mass, 
  ages, see][]{ness_2015b}. The underlying principle
 is that the flux for any pixel from any star is predictable with a simple (usually
  a polynomial) model, given the labels. Indeed, \citet{Ness2015}
@@ -102,13 +128,19 @@ Utilising a simple polynomial model to predict spectral fluxes is a distinctive
 method from parallel efforts in radiative transfer of realistic (3D) stellar 
 photospheres. Calculations of this nature are extremely expensive. Indeed, even
 with simplifications of these models (e.g., interpolated 1D photospheres),
-calculating integrated flux requires knowledge of species opacities, detailed 
+calculating synthetic spectra requires knowledge of species opacities, detailed 
 atomic and molecular information for all contributing elements, solving for
-the equation of state, and iteratively performing radiative transfer calculations. Given the
-simplicity of \tc{} and a quadratic-in-labels spectral model, it is remarkable
-that these complex calculations can be simplified so much, whilst maintaining
-the typical fidelity reported for high-resolution spectroscopic studies based on
+the equation of state, and iteratively performing expensive radiative transfer
+calculations. Given the
+simplicity of a quadratic-in-labels spectral model with \tc{}, it is remarkable
+that these complex calculations can be simplified so greatly, whilst maintaining
+the typical measurement fidelity reported for high-resolution spectroscopic studies based on
 \textit{curve-of-growth} analyses.
+
+In a way, \tc{} is approximating spectral synthesis. Thus far the applications
+have been limited to stellar spectra with spectral resolving powers of 20,000
+or less. In this regime, the profiles of weak (linearly-responding) spectral lines
+are well-represented by Gaussian profiles. In 
 
 % The Cannon is approximating spectral synthesis. Done for R ~ 20k spectra
 % Since all Gaussian and flux value is linearly related to EW, it is reasonable
