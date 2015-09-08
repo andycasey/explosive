@@ -6,7 +6,7 @@
 % Comment
 
 % Convenient colloquiualisms.
-\newcommand\article{\textit Article}
+\newcommand\article{\textit{Article}}
 \newcommand\tc{\textit{The Cannon} }
 
 % Convenient maths.
@@ -246,9 +246,6 @@ line spread function, $h(\lv,\wv\given{}X)$ can be calculated before training \t
 
 
 \section*{Acknowledgments}
-This research can be reproduced in full using the commands \texttt{pip install fireworks},
-\texttt{fireworks-reproduce}. This article was produced using commit hash \texttt{hash}.
-
 This research was fostered by discussions at the \textit{New Milky Way}
 conference hosted by the Munich Institute for Astro- and Particle Physics, and
 the \textit{Stellar Streams in the Local Universe} conference hosted at Ringberg
@@ -266,16 +263,12 @@ Rix, H.-W., Ho, A.~Y.~Q., \& Zasowski, G.\ 2015, \apj, 808, 16
 \label{lastpage}
 
 \section{Appendix A: Reproducing this research}
-This article has been compiled from the `git` repository hosted online at GitHub (commit hash \gitHash on `master` branch). The figures and tables included in this article can be reproduced in full using the following commands in a modern terminal:
+This \article{} has been compiled from the \texttt{git} repository (commit hash \texttt{\gitAbbrevHash} on \texttt{\gitBranch} branch) hosted online at GitHub\footnote{https://www.github.com/andycasey/fireworks}. The complete data analysis, figures and tables included in this \article{} can be reproduced in full using the following commands in a modern Unix-based terminal:
+\vspace{0.5em}
 
-git clone git@github.com:andycasey/fireworks.git fireworks
-cd fireworks
-python setup.py install
-python reproduce.py
-cd article
-make
-
-If the required tools are not available on the readers system (e.g., `git`), this research can also be produced using the public Docker image .
+\noindent\texttt{[reproducibility commands]} 
+\vspace{0.5em} \\
+If the required tools are not available on the readers system (e.g., \texttt{git}), this research can also be produced using the public Docker image \texttt{[docker image reference]}.
 
 \end{document}
 
