@@ -6,11 +6,11 @@ Detailed chemical abundances using (an extension of) [The Cannon](http://adsabs.
 
 Authors
 -------
-- **Andrew R. Casey (Cambridge)**
-- **Melissa K. Ness (MPIA)**
-- **David W. Hogg (NYU/MPIA)**
-- **Gerry Gilmore (Cambridge)**
-- **Hans-Walter Rix (MPIA)**
+- Andrew R. Casey (Cambridge)
+- Melissa K. Ness (MPIA)
+- David W. Hogg (NYU/MPIA)
+- Gerry Gilmore (Cambridge)
+- Hans-Walter Rix (MPIA)
 
 Contributions
 -------------
@@ -19,7 +19,7 @@ First clone the repository:
 
     git clone git@github.com:andycasey/fireworks.git
 
-The article includes references to the `git` hash, so use the included post-update hooks to keep
+The article in `article/ms.tex` includes references to the `git` hash, so use the included post-update hooks to keep
 these fresh:
 
     cd fireworks
