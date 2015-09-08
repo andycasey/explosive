@@ -15,6 +15,7 @@ from . import (model, plot, utils)
 
 logger = logging.getLogger("fireworks")
 
+from time import time
 
 class CannonModel(model.BaseModel):
 
@@ -369,6 +370,7 @@ class CannonModel(model.BaseModel):
         # [TODO] Parallelise this?
         # We would need some advice from the user about how many threads to use.
 
+        t = time()
         for i, (flux, uncertainty) \
         in enumerate(zip(self._fluxes, self._flux_uncertainties)):
             inferred = self.solve_labels(flux, uncertainty)
@@ -376,6 +378,7 @@ class CannonModel(model.BaseModel):
                 expected_labels[i, j] = self._labels[label_name][i]
                 inferred_labels[i, j] = inferred[label_name]
 
+        print("DONE ", i, time() - t)
         # Cache for future, unless the training state changes.
         self._residuals_hash = self._trained_hash
         self._residuals_cache = (names, expected_labels, inferred_labels)

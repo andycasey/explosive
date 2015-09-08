@@ -15,12 +15,15 @@ from . import (atomic, cannon, model, plot, utils)
 
 logger = logging.getLogger("fireworks")
 
+# TODO
+from time import time
+
 
 class FireworksModel(cannon.CannonModel):
 
     _trained_attributes \
         = ("_coefficients", "_scatter", "_offsets", "_label_vector_description",
-            "_stellar_parameter_labels", "_atomic_lines")
+            "_atomic_lines", "_stellar_parameter_labels")
     _data_attributes \
         = ("_labels", "_wavelengths", "_fluxes", "_flux_uncertainties")
 
@@ -78,7 +81,7 @@ class FireworksModel(cannon.CannonModel):
         return labels
 
 
-    def train(self, label_vector_description, N=None, limits=None, pivot=False,
+    def train(self, label_vector_description, N=None, limits=None, pivot=True,
         atomic_lines=None, X_H=True, stellar_parameter_labels=None, **kwargs):
         """
         Train a Cannon model based on the label vector description provided.
@@ -311,23 +314,26 @@ class FireworksModel(cannon.CannonModel):
                 "given: {2}".format(len(names), len(labels),
                     ", ".join(names)))
 
+        t_i = time()
         # Generate the Cannon-ical flux.
         label_vector_indices = self._parse_label_vector_description(
             self._label_vector_description, return_indices=True,
             __columns=names)
 
-        offsets = np.array([self._offsets[names] for names in namess])
+        offsets = np.array([self._offsets[name] for name in names])
         fluxes = np.dot(self._coefficients, cannon._build_label_vector_rows(
             label_vector_indices, labels - offsets).T).flatten()
 
+        t_a = time()
+        tc = 0
         # Include treatment of any atomic lines.
         if self._atomic_lines is not None:
 
             N = len(self._atomic_lines)
-            stellar_parameters = [labels[labels.index(_)] \
+            stellar_parameters = [labels[names.index(_)] \
                 for _ in self._stellar_parameter_labels]
             
-            weak_line_fluxes = np.ones(cannonical_flux.size)
+            #weak_line_fluxes = np.ones(fluxes.size)
             for i, (label, abundance) \
             in enumerate(zip(self._atomic_lines.keys(), labels[-N:])):
 
@@ -335,20 +341,25 @@ class FireworksModel(cannon.CannonModel):
 
                 for j, mu in enumerate(transitions["wavelength"]):
                     # The 1e-3 factor is to turn the EW from milliAngstroms to A
+                    t_cc = time()
                     expected_ew = atomic._solve_equivalent_width(abundance,
                         ew_coefficients[j], mu, stellar_parameters) * 1e-3
-
+                    tc += time() - t_cc
                     p_sigma = 0.35
 
+                    assert expected_ew >= 0
                     # Translate this into a Gaussian profile.
                     # EW = sqrt(2*pi) * amplitude * sigma
                     # we know the central wavelength, we know the sigma
                     amplitude = expected_ew/(np.sqrt(2*np.pi) * p_sigma)
-                    weak_line_fluxes *= 1. \
+                    fluxes *= 1. \
                         - amplitude * np.exp(-(self._wavelengths - mu)**2 \
                             / (2. * p_sigma**2))
 
-            fluxes *= weak_line_fluxes
+            #fluxes *= weak_line_fluxes
+
+        t_b = time()
+        #print("A B", t_a - t_i, t_b - t_a, 100.*tc/(t_b-t_a))
         return fluxes
 
 
@@ -423,53 +434,20 @@ class FireworksModel(cannon.CannonModel):
             p0 = np.hstack([p0, [np.nanmedian(self._labels[p]) \
                 for p in self._atomic_lines.keys()]])
 
-        self._finite_mask = finite
-
-        # Create the function.
-        def f(coefficients, *labels):
-
-            # Build the weak lines spectrum.
-            N = len(self._atomic_lines)
-            weak_line_fluxes = np.ones(flux.size)
-            stellar_parameters = [labels[self.lv_labels.index(_)] \
-                for _ in self._stellar_parameter_labels]
-
-            for i, (label, abundance) \
-            in enumerate(zip(self._atomic_lines.keys(), labels[-N:])):
-
-                transitions, ew_coefficients = self._atomic_lines[label]
-                for j, mu in enumerate(transitions["wavelength"]):
-                    # The 1e-3 factor is to turn the EW from milliAngstroms
-                    # into Angstroms.
-                    expected_ew = atomic._solve_equivalent_width(abundance,
-                        ew_coefficients[j], mu, stellar_parameters) * 1e-3
-
-                    p_sigma = 0.35
-
-                    # Translate this into a weak profile.
-                    # EW = sqrt(2*pi) * amplitude * sigma
-                    # we know the central wavelength, we know the sigma
-                    # (EW is in mA, and we want A)
-                    amplitude = expected_ew/(np.sqrt(2*np.pi) * p_sigma)
-                    weak_line_fluxes *= 1. \
-                        - amplitude * np.exp(-(self._wavelengths - mu)**2 \
-                            / (2. * p_sigma**2))
-
-            return weak_line_fluxes[self._finite_mask] \
-                * np.dot(coefficients, cannon._build_label_vector_rows(
-                    label_vector_indices, labels[:-N]).T).flatten()
-
         # Optimise the curve to solve for the parameters and covariance.
         full_output = kwargs.pop("full_output", False)
         kwds = kwargs.copy()
         kwds.setdefault("maxfev", 10000)
 
+
+        f = lambda _, *labels: self.predict(labels)[finite]
+
+        td = time()
         p_opt, p_covariance = op.curve_fit(f, self._coefficients[finite],
             flux[finite], p0=p0, sigma=1.0/np.sqrt(Cinv), absolute_sigma=True,
             **kwds)
-
-        # Remove the temporary finite mask.
-        del self._finite_mask
+        te = time()
+        print("OK:",1000 * (te - td))
 
         # We might have solved for any number of parameters, so we return a dict
         p_opt = { k: p_opt[i] + self._offsets[k] for i, k in enumerate(names) }
@@ -544,8 +522,6 @@ class FireworksModel(cannon.CannonModel):
                     expected_test_labels[i, j] = self._labels[~mask][name]
                 
         return (label_names, expected_test_labels, inferred_test_labels)
-
-
 
 
 def _validate_atomic_lines(labels, atomic_lines):

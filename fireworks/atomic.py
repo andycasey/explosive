@@ -345,6 +345,8 @@ def _approximate_radiative_transfer(transition, stellar_parameters, ews,
 
     return (p_opt, p_cov)
 
+
+
 """
 
 def _tile_transition_values(values, N_stars, N_ews):
