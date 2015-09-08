@@ -128,7 +128,7 @@ and demonstrate through cross-validation that these labels can be
 measured with a precision of 95~K in $T_{\rm eff}$, 0.24 in $\log{g}$, 0.08 in 
 [M/H], with negligible biases. 
 
-The noise in Equation \ref{eq:cannon} can be taken as a quadrature combination of the pixel uncertainty variance $\sigma_{n\lambda}^2$ and the intrinsic variance of the spectral model at each wavelength $s_\lambda^2$. The flux $f_{n\lambda}$ can be written as a linear function of the label vector, leading to a single-pixel log-likelihood function
+The noise (Eq. \ref{eq:cannon}) can be taken as a quadrature combination of the pixel uncertainty variance $\sigma_{n\lambda}^2$ and the intrinsic variance of the spectral model at each wavelength $s_\lambda^2$. The flux $f_{n\lambda}$ can be written as a linear function of the label vector, leading to a single-pixel log-likelihood function
 
 \begin{equation}
 \ln{p}\left(f_{n\lambda}\given\cv^\intercal,\lv, s_{\lambda}^2\right) = -\frac{1}{2}\frac{\left[f_{n\lambda} - \cv^{\intercal}\cdot\lv\right]^2}{s_\lambda^2 + \sigma_{n\lambda}^2} -\frac{1}{2}\ln\left(s_{\lambda}^2 + \sigma_{n\lambda}^2\right).
@@ -145,7 +145,26 @@ Once the coefficients $[\cv,\ssq]$ are known, \tc{} provides a \textit{generativ
 
 Before extending \tc{} to include individual chemical abundances, it is
 a useful exercise to understand \textit{why} a simple spectral model can 
-approximate synthesis calculations with comparable fidelity. Thus far the applications of \tc{} have been restricted to stellar spectra with resolving powers of $\mathcal{R} = 22,500$ \citep[APOGEE;][]{Ness15a} or less \citep[e.g., LAMOST;][]{Ho15}. In these regimes, the shapes of unsaturated spectral lines are well-represented by Gaussian profiles. 
+approximate synthesis calculations with comparable fidelity, and thus \textit{how} this framework can be extended to include individual abundances. At present the applications of \tc{} have been restricted to stellar spectra with resolving powers of $\mathcal{R} = 22,500$ \citep[APOGEE;][]{Ness15a} or less \citep[e.g., LAMOST;][]{Ho15}. In these regimes, the shapes of unsaturated spectral lines are well-represented by Gaussian profiles. This fact leads to several critical insights, which we describe below.
+
+In stellar spectroscopy we are frequently presented with the idea of the equivalent width (EW; $\mathcal{W}$) of an absorption line. Consider a single (unblended) atomic line at rest wavelength $\lambda_r$, where the flux values at and surrounding $\lambda_r$ ($f_{n\lambda_r-{\delta}},f_{n\lambda_{r+\delta}}$) are well-approximated by a \textit{Cannon} spectral model. Because the absorption line is well-represented by a Gaussian profile at this spectral resolution, the flux at $\lambda_r$ is related to the EW of the line through
+
+\begin{equation}
+\mathcal{W} = \sigma\cdot{}f_{n\lambda_r}\sqrt{2\pi}
+\end{equation}
+
+where $\sigma$ is the standard deviation of the profile, which is well-approximated by width of the line spread function (LSF) kernel. That is to say, for resolutions $\mathcal{R} \lesssim 20,000$, $\sigma$ is dominated by the spectrograph, not the absorption line or the labels (stellar parameters).
+
+
+
+
+% where the flux values $f_{n\lambda}$ are well-approximated by the given spectral model. 
+
+
+
+% Things are Gaussian, therefore EW related.
+% How does EW of a line change w.r.t. stellar parameters
+% If we had a model for a single line, how could this be included.
 
 
 
@@ -287,6 +306,8 @@ conference hosted by the Munich Institute for Astro- and Particle Physics, and
 the \textit{Stellar Streams in the Local Universe} conference hosted at Ringberg
 Castle by the Max-Planck-Institut F\"ur Astronomie. This research made use of 
 Astropy, a community-developed core Python package for Astronomy \citep{astropy}.
+The authors are thankful for the following free online services which help make
+science reproducibility easier: GitHub, Travis Continuous Integration, and Zenodo.
 
 \begin{thebibliography}{99}
 \bibitem[Astropy Collaboration et al.(2013)]{astropy} Astropy Collaboration, Robitaille, T.~P., Tollerud, E.~J., et al.\ 2013, \aap, 558, AA33
@@ -305,7 +326,7 @@ Astropy, a community-developed core Python package for Astronomy \citep{astropy}
 \label{lastpage}
 
 \section{Appendix A: Reproducing this research}
-This \article{} has been compiled from the \texttt{git} repository on \gitAuthorDate{} (commit hash \texttt{\gitAbbrevHash} on \texttt{\gitBranch} branch) hosted online at GitHub\footnote{https://www.github.com/andycasey/fireworks}. The complete data analysis, figures and tables included in this \article{} can be reproduced in full using the following commands in a modern Unix-based terminal:
+This \article{} has been compiled from the \texttt{git} repository (abbreviated commit hash \texttt{\gitAbbrevHash} on \texttt{\gitBranch} branch) hosted online by GitHub at \texttt{github.com/andycasey/fireworks}. The data required to reproduce this analysis is persistently hosted through Zenodo \citep{DATA}. The complete analysis, figures and tables included in this \article{} can be reproduced in full using the following commands in a modern Unix-based terminal:
 \vspace{0.5em}
 
 \noindent\texttt{[reproducibility commands]} 
