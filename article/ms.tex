@@ -3,12 +3,9 @@
 \usepackage{amsmath,amsfonts,amssymb,amsbsy}
 \usepackage{gitinfo2}
 
-
-% Convenient colloquiualisms.
 \newcommand\article{\textit{Article}}
 \newcommand\tc{\textit{The Cannon}}
 
-% Convenient maths.
 \newcommand\K{$\mathbf{K}$}
 \newcommand\lv{\mathbf{\boldsymbol\ell_n}}
 \newcommand\cv{{\boldsymbol\theta}_\lambda}
@@ -169,10 +166,39 @@ Knowing that a simple model can relate the a single line abundance [X/H] and int
 % How does EW of a line change w.r.t. stellar parameters
 \textbf{Description of how EW for a single line will change w.r.t stellar parameters}
 
-We now have a functional form of a model that relates $\mathcal{W}$ to $\log_\epsilon\left({\textrm X}\right)$ (or a scaled-solar [X/H] value), given the stellar parameters, which themselves are part of the set of $K$ labels. It is interesting to note that Equation \ref{eq:ew-logx-model} is not dissimilar to the quadratic-in-labels model used by \citet{Ness15a} for APOGEE data. With only the prior knowledge that \textit{a simple model of the labels can predict spectral fluxes}, we have derived the appropriate functional form for a single absorption line.
+We now have a functional form of a model that relates $\mathcal{W}$ to $\log_\epsilon\left({\textrm X}\right)$ (or a scaled-solar [X/H] value), given the stellar parameters, which themselves are part of the set of $K$ labels. It is interesting to note that Equation \ref{eq:ew-logx-model} is not dissimilar to the quadratic-in-labels model used by \citet{Ness15a} for APOGEE data. With only the prior knowledge that \textit{a simple model of the labels can predict spectral fluxes}, we have derived the appropriate functional form for a single absorption line. The model $\mathcal{W}\left({\rm [X/H]}, T, logg\right)$ simply approximates the curve-of-growth for a single line, and the coefficients still need to be calculated. The practicalities of determining these coefficients is outlined in Section \ref{sec:somewhere}. For the purposes of introducing the model, we can assume that they are easily calculable.
 
-% How do we include this atomic line model.
-% However this is complex because if we extended this to infinity, we would need an infinity of blended lines, etc.
+Consider multiple atomic lines, where the coefficients to translate $\mathcal{W}$ and [X/H] are known. Given some knowledge of the line spread function, the EWs $\mathcal{W}$ to flux values $f_{n\lambda}$ can be translated such that:
+
+\begin{equation}
+h = X
+\label{eq:h-model}
+\end{equation}
+
+Here we implicitly assume the mutual opacity contributions of nearby weak lines will be small. 
+At this point it is worthwhile to ask whether Equation \ref{eq:h-model} can be scaled sufficiently to $M$ atomic lines in order to produce an entire spectral model for $f_{n\lambda}$, without the contribution of $g\left(\lv\given\cv\right)$. There would be a number of immediate issues with that approach: a huge number of additional coefficients would be required, hidden lines could not be encapsulated accurately by the model, strong lines would be extremely poorly modelled by the fit, no longer linear (slow), but most importantly the pixels would lose flexibility in training on arbitrary labels. 
+
+If lines are blended, one could consider modelling many more atomic transitions.
+However as the number grows, this situation becomes unnecessarily complex:
+often blended lines exist and we do not care about their abundance, only their
+inclusion (nuisance or dirty lines). Other features may be a complex combination
+of thousands of molecular features.
+
+Here we introduce a method of including individual atomic transitions within an existing \textit{Cannon} model.
+
+The spectral model becomes a multiplicative function of $g$ and $h$ with some
+unknown noise.
+
+\begin{equation}
+    f_{n\lambda} = g(\lv\given\cv) \cdot h(\lv,\wv\given\psi_n) +  {\rm noise}.
+\end{equation}
+
+This inclusion combines the existing flexibility in the model, allowing for training on arbitrary labels, and uses individual absorption lines for which some information is known (species, atomic data, etc) in order to trace the chemical abundances of individual elements.
+
+
+The vector $\wv$ can be calculated directly from spectral synthesis, or using data.
+In practice, given some rest-frame normalised spectra and some knowledge of the
+line spread function, $h(\lv,\wv\given{}X)$ can be calculated before training \tc.
 
 
 
@@ -190,45 +216,12 @@ We now have a functional form of a model that relates $\mathcal{W}$ to $\log_\ep
 %\textit{curve-of-growth} analyses.
 
 
-% Solving for coefficients and scatter term.
-
-
-
-Thus, we have a reasonable form of how EW, log(A) change with respect to
-stellar parameters. At this point we have simply approximated the curve of growth
-for a given line. The coefficients need to be solved for. These can be solved for
-from existing data (fitting profiles) with measured abundances or by synthesising
-spectra and relating the EW to log(X).
-
 % Figure of relating EW to [X/H] with some simple model compared to analytic value.
 
-Consider a scenario where the LSF is known and we want to model what the
-spectrum looks like for three lines. For a given log(X) and stellar parameters,
-we can solve for the EW. If the LSF is known, we can directly turn this into a
-line profile under the assumption of gaussianity.
 
-Multiple (separated) lines can be treated
-
-Include h function.
-
-If lines are blended, one could consider modelling many more atomic transitions.
-However as the number grows, this situation becomes unnecessarily complex:
-often blended lines exist and we do not care about their abundance, only their
-inclusion (nuisance or dirty lines). Other features may be a complex combination
-of thousands of molecular features.
 
 The compromise is to use TC and `clean' lines that we care about in concert.
 
-The spectral model becomes a multiplicative function of $g$ and $h$ with some
-unknown noise.
-
-\begin{equation}
-    f_{n\lambda} = g(\lv\given\cv) \cdot h(\lv,\wv\given\psi_n) +  {\rm noise}.
-\end{equation}
-
-The vector $\wv$ can be calculated directly from spectral synthesis, or using data.
-In practice, given some rest-frame normalised spectra and some knowledge of the
-line spread function, $h(\lv,\wv\given{}X)$ can be calculated before training \tc.
 
 
 % existing simple model. replaces expensive synthesis, involving model atmosphere
