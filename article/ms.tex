@@ -3,6 +3,8 @@
 \usepackage{amsmath,amsfonts,amssymb,amsbsy}
 \usepackage{gitinfo2}
 
+\long\def\/*#1*/{}
+
 \newcommand\article{\textit{Article}}
 \newcommand\tc{\textit{The Cannon}}
 
@@ -243,11 +245,12 @@ line is well-represented by a Gaussian profile at this spectral resolution, the
 flux at $\lambda_r$ is related to the EW of the line in star $n$ ($\mathcal{W}_n$):
 
 \begin{equation}
-\mathcal{W}_n = \sigma{}\sqrt{2\pi}(1 - f_{n\lambda_r}).
+\mathcal{W}_n = \sigma{}a\sqrt{2\pi}.
 \label{eq:ew-flux}
 \end{equation}
 
-Here $\sigma$ is the standard deviation of the profile. For typical FGK-type
+Here $a$ is the amplitude of the profile ($a = 1 - f_{n\lambda_r}$) and $\sigma$ 
+is the standard deviation. For typical FGK-type
 stars observed with $\mathcal{R} \lesssim 20,000$, $\sigma$ will be dominated
 by the line spread function (LSF) of the spectrograph. Because \tc{} is best suited
 to large spectroscopic surveys, we can presume that the LSF is well-known, or
@@ -316,20 +319,20 @@ $\lv = \{T_{\rm eff},\log{g},\log_{\epsilon}{\rm Si}\}$\footnote{Recall
 ${\rm [Si/Fe]} \equiv {\rm [Si/H]} - {\rm [Fe/H]} \equiv \log_{\epsilon}{\rm Si} 
 - \log_{\epsilon}{\rm Si}_\odot - {\rm [Fe/H]}$, where we adopt the \citet{Asplund2009}
 solar abundances.} and the coefficients of the vector $\psiv$ for a given 
-atomic line need to be solved for. Combining Equations \ref{eq:ew-flux} and
-\ref{eq:line-strength-model} yields the approximate flux $f_{n,\lambda_r}$ that 
-atomic line $m$ contributes to star $n$ at wavelength $\lambda_r$, which we
-describe as $h(\lv|\psiv,\sigma)$:
+atomic line need to be solved for. Thus from Equations \ref{eq:ew-flux} and
+\ref{eq:line-strength-model} we obtain the approximate flux $f_{n,\lambda_r}$ that 
+atomic line $m$ (at wavelength $\lambda_m$) contributes to star $n$ at any
+wavelength $\lambda$:
 
 \begin{equation}
-f_{n,\lambda_r} \approx h(\lv|\psiv,\sigma,\lambda) \equiv 1 - \frac{\psiv^{\intercal}\cdot\lv}{\sigma\sqrt{2\pi}}
+f_{n,\lambda_r} \approx 1 - \left(\psiv^{\intercal}\cdot\lv\right)\mathcal{N}\left(\lambda_{m} - \lambda_r,\sigma\right).
 \end{equation}
 
 We calculate $\psiv$ given the stellar parameters of the training set and the
-calculated $\logeps{(Si~1)}$ abundances from MOOG, calculated at many \ew\ values.
+calculated $\logeps{(Si~1)}$ abundances from MOOG, calculated for multiple \ew.
 The difference between the MOOG-calculated abundance and our line strength model
 is shown in the second panel of Figure \ref{fig:atomic-line-model-example}.
-Negligible bias is present, and the standard deviation is 0.01~dex, demonstrating
+The agreement is excellent. Negligible bias is present, and the standard deviation is 0.01~dex, demonstrating
 that a quadratic-in-labels model can relate line strength \ew\ and abundance
 for all types of stars in the training set. This is further shown in the third panel of 
 Figure \ref{fig:atomic-line-model-example},
@@ -338,12 +341,11 @@ star is truly chosen at random, see Appendix \ref{appendix:reproducibility} for 
 to reproduce this research.} in the training set. We calculated the corresponding
 line strength \ew\ given the stellar parameters and reported Si 1 abundance, 
 adopted a spectral resolution of $\mathcal{R} = 22,500$ and produced a model 
-spectrum of this atomic line following Equation \ref{ew-flux}. 
-
-We note that some of the 0.01~dex scatter between our line strength model and 
-MOOG (second panel of Figure \ref{fig:atomic-line-model-example}) is likely due to 
-the tolerance employed by MOOG's optimisation algorithm to calculate a line 
-abundance, given an EW. 
+spectrum of this atomic line following Equation \ref{ew-flux}. We note that some 
+of the 0.01~dex scatter between our 
+line strength model and MOOG (second panel of Figure 
+\ref{fig:atomic-line-model-example}) is likely due to the tolerance employed by 
+MOOG's optimisation algorithm to calculate a line abundance, given an EW. 
 
 % Show a figure with different EW vs abundances, colored by teff/logg
 % Then show the expected EW vs synthesis EW, and show the residual
@@ -353,19 +355,10 @@ abundance, given an EW.
 
 
 
-% h relates W to flux values.
-% W 
-
-
-
-
-
-% Discuss using the Cannon model from Ness et al to model the EW as a func. of stellar params.
-
 \subsection{Using the behaviour of spectral lines to guide model complexity}
 
-Knowing that a simple model can relate the a single line abundance 
-$\log_{\epsilon}{\rm X}$ to the equivalent width \ew\, given the stellar
+Knowing that a quadratic model can relate the a single line abundance 
+$\logeps{X}$ to the equivalent width \ew\, given the stellar
 parameters, it is intriguing to ask whether model atmosphere relations and
 the theory of spectral line formation can guide the level of model complexity
 required.
@@ -382,78 +375,59 @@ required.
 
 \subsection{Extending \tc{} to include individual atomic lines}
 
-We now have a functional form of a model that relates $\mathcal{W}$ to $\log_\epsilon\left({\textrm X}\right)$ (or a scaled-solar [X/H] value), given the stellar parameters, which themselves are part of the set of $K$ labels. It is interesting to note that Equation \ref{eq:ew-logx-model} is not dissimilar to the quadratic-in-labels model used by \citet{Ness15a} for APOGEE data. With only the prior knowledge that \textit{a simple model of the labels can predict spectral fluxes}, we have derived the appropriate functional form for a single absorption line. The model $\mathcal{W}\left({\rm [X/H]}, T, logg\right)$ simply approximates the curve-of-growth for a single line, and the coefficients still need to be calculated. The practicalities of determining these coefficients is outlined in Section \ref{sec:somewhere}. For the purposes of introducing the model, we can assume that they are easily calculable.
+We now have a physically-motivated model that relates \ew\ to $\logeps{X}$
+(or a scaled-solar [X/H] or [X/Fe] ratio), given the stellar parameters. Here we
+describe how we include multiple atomic line models as part of \tc's training
+and testing phases. 
 
-Consider multiple atomic lines, where the coefficients to translate $\mathcal{W}$ and [X/H] are known. Given some knowledge of the line spread function, the EWs $\mathcal{W}$ to flux values $f_{n\lambda}$ can be translated such that:
+% different psi_m for each line at lamgda_m
+
+
+% Introduce a h function that includes treatment from all lines.
 
 \begin{equation}
-h = X
-\label{eq:h-model}
+h(\lv\given\{\psiv\},\{\lambda_m\},\sigma) = 1 - \prod^{M}_{m=0}(\psiv^\intercal\cdot\lv)\mathcal{N}(\lambda_m - \lambda,\sigma)
 \end{equation}
 
-Here we implicitly assume the mutual opacity contributions of nearby weak lines will be small. 
-At this point it is worthwhile to ask whether Equation \ref{eq:h-model} can be scaled sufficiently to $M$ atomic lines in order to produce an entire spectral model for $f_{n\lambda}$, without the contribution of $g\left(\lv\given\cv\right)$. There would be a number of immediate issues with that approach: a huge number of additional coefficients would be required, hidden lines could not be encapsulated accurately by the model, strong lines would be extremely poorly modelled by the fit, no longer linear (slow), but most importantly the pixels would lose flexibility in training on arbitrary labels. 
 
-If lines are blended, one could consider modelling many more atomic transitions.
-However as the number grows, this situation becomes unnecessarily complex:
-often blended lines exist and we do not care about their abundance, only their
-inclusion (nuisance or dirty lines). Other features may be a complex combination
-of thousands of molecular features.
+% Assumptions for the training set (complete abundances). Incomplete
+% abundances in the training set can be discussed in Section ref.
 
-Here we introduce a method of including individual atomic transitions within an existing \textit{Cannon} model.
-
-The spectral model becomes a multiplicative function of $g$ and $h$ with some
-unknown noise.
 
 \begin{equation}
     f_{n\lambda} = g(\lv\given\cv) \cdot h(\lv,\wv\given\psi_n) +  {\rm noise}.
 \end{equation}
 
-This inclusion combines the existing flexibility in the model, allowing for training on arbitrary labels, and uses individual absorption lines for which some information is known (species, atomic data, etc) in order to trace the chemical abundances of individual elements.
+The training stage can be described in practice as the following:
 
+Build all the atomic lines of interest.
 
-The vector $\wv$ can be calculated directly from spectral synthesis, or using data.
-In practice, given some rest-frame normalised spectra and some knowledge of the
-line spread function, $h(\lv,\wv\given{}X)$ can be calculated before training \tc.
+For each star
+\begin{enumerate}
+\item Use the reference abundance for each elemental species to calculate expected EWs
+\item Use the LSF to calculate $h$
+\item Divide the flux by $h$
+\end{enumerate}
 
+For each pixel
+\begin{enumerate}
+\item Train \tc{} on the residuals
+\end{enumerate}
 
+This framework combines the existing flexibility in \tc\, allowing for training
+on arbitrary labels, and uses individual absorption lines for which some 
+information is known (species, atomic data, etc) in order to trace the chemical 
+abundances of individual elements.
 
-%Utilising a simple polynomial model to predict spectral fluxes is a distinctive
-%method from parallel efforts in radiative transfer of realistic (3D) stellar 
-%photospheres. Calculations of this nature are extremely expensive. Indeed, even
-%with simplifications of these models (e.g., interpolated 1D photospheres),
-%calculating synthetic spectra requires knowledge of species opacities, detailed 
-%atomic and molecular information for all contributing elements, solving for
-%the equation of state, and iteratively performing expensive radiative transfer
-%calculations. Given the
-%simplicity of a quadratic-in-labels spectral model with \tc{}, it is remarkable
-%that these complex calculations can be simplified so greatly, whilst maintaining
-%the typical measurement fidelity reported for high-resolution spectroscopic studies based on
-%\textit{curve-of-growth} analyses.
-
-
-% Figure of relating EW to [X/H] with some simple model compared to analytic value.
-
-
-
-The compromise is to use TC and `clean' lines that we care about in concert.
-
-
-
-% existing simple model. replaces expensive synthesis, involving model atmosphere
-% generation, t-tau relations, opacities, equation of state, integrated line-of-sight
-% and radiative transfer, etc.
-
-% before extending this model to include individual abundances, it is worthwhile
-% demonstrating (from a physics perspective) *why* the cannon works so well.
-
-% APOGEE, R of 20,000, 
-% LAMOST, higher Rs
-% super high-resolution also works.
-
+At testing time, the story is a little different. Because the stellar parameters
+influence both $h$ and $g$, we must solve for the stellar parameters and all
+chemical abundances simultaneously.
 
 
 \section{APOGEE}
+
+We will use the APOGEE X sample to derive individual chemical abundances of 15
+elements using \tc{}. 
 
 % All about APOGEE Survey and existing data.
 
@@ -476,6 +450,21 @@ The compromise is to use TC and `clean' lines that we care about in concert.
 % Blended lines
 
 % Limitations: what about missing abundance data?
+
+
+
+\/* 
+% for the discussion.
+Here we implicitly assume the mutual opacity contributions of nearby weak lines will be small. 
+At this point it is worthwhile to ask whether Equation \ref{eq:h-model} can be scaled sufficiently to $M$ atomic lines in order to produce an entire spectral model for $f_{n\lambda}$, without the contribution of $g\left(\lv\given\cv\right)$. There would be a number of immediate issues with that approach: a huge number of additional coefficients would be required, hidden lines could not be encapsulated accurately by the model, strong lines would be extremely poorly modelled by the fit, no longer linear (slow), but most importantly the pixels would lose flexibility in training on arbitrary labels. 
+
+If lines are blended, one could consider modelling many more atomic transitions.
+However as the number grows, this situation becomes unnecessarily complex:
+often blended lines exist and we do not care about their abundance, only their
+inclusion (nuisance or dirty lines). Other features may be a complex combination
+of thousands of molecular features.
+*/
+
 
 \section{Conclusions}
 

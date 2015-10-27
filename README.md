@@ -23,12 +23,16 @@ The article in `article/ms.tex` includes references to the `git` hash, so use th
 these fresh:
 
     cd fireworks
-    cat hooks/post-commit | tee .git/hooks/post-{commit,update,merge} >/dev/null
-    chmod +x .git/hooks/post-{commit,update,merge}
+    cat hooks/post-commit | tee .git/hooks/post-{commit,merge,update} >/dev/null
+    chmod +x .git/hooks/post-{commit,merge,update}
 
 The article can be compiled with the following commands:
 
     cd article
     make
+
+License
+-------
+MIT. See the `LICENSE` file for more details.
 
 Copyright (2015) the authors. All rights reserved.
