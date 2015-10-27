@@ -16,9 +16,14 @@
 
 \newcommand\teff{$T_{\rm eff}$}
 \newcommand\logg{$\log{g}$}
-\newcommand\mh{${\mathrm [M/H]}$}
+\newcommand\mh{${\rm [M/H]}$}
+\newcommand{\set}[1]{$\{#1\}$}
+\newcommand{\logeps}[1]{\log_{\epsilon}{\rm #1}}
+\newcommand\ew{$\mathcal{W}$}
+\newcommand\psiv{\mathbf{\boldsymbol{\psi}_m}}
 
-\title[Cannon Chemistry]{Detailed Chemical Abundances with \tc{}} 
+\title[Detailed Chemical Abundances with \tc{}]{Detailed Chemical Abundances with \tc{}} 
+
 % Some arrangement of the following authors:
 \author[Casey et al.]{A.~R.~Casey$^1$, M.~Ness$^2$, G.~Gilmore$^1$,
     D.~W.~Hogg$^{2,3,4}$, H.~W.~Rix$^2$ \\ 
@@ -33,7 +38,7 @@ $^4$Center for Data Science, New York University, 726 Broadway, 7th Floor,
     New York, NY 10003, USA}
 \begin{document}
 
-\date{Accepted 2015 XX XX. Received 2015 October XX; in original form 2015 XX xx}
+\date{Accepted 2015 XX XX. Received 2015 XX XX; in original form 2015 XX XX}
 
 \pagerange{\pageref{firstpage}--\pageref{lastpage}} \pubyear{2015}
 
@@ -72,68 +77,78 @@ measurements of 15 elements in Z APOGEE spectra from DR12.
 Ground-based stellar spectroscopic surveys have enormous scientific potential.
   Key absorption features in stellar spectra permit inferences on the internal 
 structure of stars and their detailed chemical composition.  Given a sufficiently
-large sample of stars, these inferences can directly guide or constrain models 
+large sample of stars, these inferences can exclude, guide, or constrain models 
 over a large range of physical scales: the formation of planets, stars and 
 clusters, supernovae yields and nucleosynthetic pathways, as well as the large 
-scale evolution of the Milky Way.  For these reasons an increasing number of 
-stellar spectroscopic surveys are being undertaken, with each survey generation 
-increasing in sample size \citep{gaia_eso; galah; lamost; apogee; 4most}.
+scale evolution of the Milky Way.  For these reasons, an increasing number of 
+stellar spectroscopic surveys are being undertaken, each 
+increasing in sample size \citep{gaia_eso, galah, lamost, apogee, weave, 4most}.
 
-% Data have outgrown the methods.
-In some ways, the spectroscopic data have outgrown the methods used to analyse
-them. High-resolution ($\mathcal{R} > 20,000$) stellar spectroscopy has 
-colloquially been considered as a `dark art': analyses are carefully performed 
+We propose the spectroscopic data have outgrown the methods used to analyse
+them. There exists an inordinate amount of high quality (high-resolution, high S/N)
+spectra, far more than what was available just a decade ago, however the techniques 
+employed to extract information from these data have improved only fractionally. 
+A subjective (human-driven) analysis was manageable given the data volume, and 
+for this reason high-resolution ($\mathcal{R} > 20,000$) stellar spectroscopy has 
+colloquially been considered as a `dark art'. Analyses were carefully performed 
 by an expert spectroscopist, who themselves were trained by an expert in exactly
-where the stellar continuum should be placed, and which atomic lines are 
-considered `clean' or `dirty'. This work is equally impressive as it is 
+where the stellar continuum ought to be placed, which atomic lines are 
+considered `clean' or `dirty' (blended), as well as which analysis decisions are
+acceptable, and which are not. This work is equally impressive as it is 
 subjective: the best spectroscopists host an encyclopaedic knowledge of atomic
 absorption lines with decades of experience, yet in blind-tests their decisions 
 of where to place the continuum quickly becomes the most dominant source of 
-systematic error.
-% Lot of unextracted information in these spectra (e.g., mass, ages)
+systematic error \citep{who, who}.
 
-% Chemical abundance analysis takes time.
-Classical spectroscopic analyses are time-intensive both in human and computing
-resources. The Gaia-ESO Survey has been particularly instrumental in minimising
-the human resources required for analysis: all analysis codes of FGK stars 
-employed in Gaia-ESO are now completely automatised.  However the computing
-challenge remains: some analysis codes take up to one hour (single core) to 
-determine stellar parameters (\teff, \logg, \mh) for a single star. Given the 
-data scale (e.g., $\sim$400 stars observed simultaneously with HERMES), this 
-poses a modest computational problem.
+Classical spectroscopic analyses are human time-intensive, and were unable to
+scale to the current data volume. The Gaia-ESO Survey has been particularly 
+influential in minimising the human resources required for analysis: all analysis 
+codes of FGK stars employed in Gaia-ESO are completely automatised.  However
+a computing challenge has arisen: some analysis codes take up to one hour (single
+core) to determine stellar parameters (\teff, \logg, \mh) for a single star. Given the 
+expected data growth in the next decade, this poses a major computational error.
 
-% These analysis techniques are not optimal, either.
 These analyses also have strict limitations in validity, and a range of options
-are available.  Many of these options are not straightforward.  The community 
-standard is to perform chemical abundance analyses using 1D model photospheres 
-under the assumption of local thermal equilibrium (LTE). There are a number of 
-photospheric models available.  Detailed information about the species (atomic 
-and molecular) opacities is required, and partition functions are usually 
-approximated from polynomials. Atomic data (e.g., oscillator strengths) must be
-well-known, and the treatment of Stark and XX broadening must be carefully
-included. Results are further sensitive to the manner in which the equation of 
-state was solved. Simply put, there are many things to consider for a careful 
-analysis.
+are available.  Many analysis options do not have straightforward answers. The 
+community standard is to perform chemical abundance analyses using a 
+one-dimensional description of a steady-state model photosphere with the
+assumption of local thermal equilibrium (LTE). There are a number of 
+photospheric models available from different groups.  Detailed information about
+the species (atomic and molecular) opacities is required, and partition functions
+are usually approximated from polynomials published decades earlier. Atomic 
+data (e.g., oscillator strengths) must be well-known, and the treatment of 
+natural, thermal and pressure broadening must be appropriately included,
+with careful consideration to the impact on perturber collisions. Results are 
+further sensitive to the manner in which the equation of state was solved. 
+Simply put, there is a lot of physics to consider.
 
-% TC is in stark contrast to these methods
-% It's fast, accurate and precise.
+In contrast, \tc{} \citep{Ness15a} ignores everything we know about physics.
+\tc{} falls into the regime of supervised machine learning, and is $\sim10^5$
+times faster than standard spectroscopic analysis codes. The results published 
+using \tc{} thus far are extremely impressive. There is no knowledge of 
+stars, no input on interactions between electromagnetic fields and particles, nothing considering
+spectral line formation, and no input of atomic data, opacities, partition functions 
+or depth-dependent photospheric quantities. Only a relatively small training set
+and a polynomial model of stellar parameter labels is required in order to 
+reasonably approximate expensive spectral syntheses. However because 
+\tc{} is purely data-driven, there is a missing link to physics. Most crucially,
+because \tc{} works in label space, including individual chemical abundances
+is a non-trivial exercise. Massive increases in the label complexity would be
+required to account for known covariances between parameters and elements,
+which increases the likelihood of overfitting and limits robustness and interpretability.
+Given the high quality spectra currently being collected by ground-based surveys,
+extending functionality of \tc\ to include individual chemical abundances -- whilst
+maintaining interpretability -- has the potential to revolutionise the way we 
+treat stellar spectroscopic data. 
 
-% It ignores physics.
-\tc{} falls into the regime of supervised machine learning. The results obtained by \tc{} thus far are extremely impressive, particularly when it is considered that the model ignores everything learned about atomic physics and stellar spectra since the names' inconception 100 years ago. There is no knowledge of stars, no input on interactions between fields and particles, nothing considering spectral line formation, and no input of atomic data, opacities, partition functions or depth-dependent photospheric quantities. Only a polynomial model of stellar parameter labels is required in order to reasonably approximate expensive spectral syntheses. However because \tc{} is purely data-driven, there is a missing link to physics.
-
-% Including chemical abundances into TC is non-trivial.
-
-
-% stellar parameter and chemical abundance analysis take time
-% equation of state, radiative transfer & spectral synthesis of multiple lines
-% 1D model atmospheres, 3D models.
-% introducing tc
-% it's awesome: fast, accurate and precise (given the models published thus far)
-% impressively it does all this whilst ignoring all advances made in stellar physics over the past 100 years.
-% introducing chemical abundances into TC is not trivial
-% high dimensionality
-
-This \article{} is organised as follows. In Section \ref{sec:model} we briefly describe the existing foundations for \tc{} and demonstrate from a theoretical perspective as to why the model flexibility is sufficient to accurately represent spectral fluxes. We also outline how to include individual atomic lines within an existing \textit{Cannon} model. In Section \ref{sec:apogee} we apply a detailed chemical abundance \textit{Cannon} to the APOGEE Data Release (DR) 12 spectra. We discuss the suitability and limitations of the method in Section \ref{sec:discussion}. In Section \ref{sec:conclusion} we conclude with a summary of our findings.
+This \article{} is organised as follows. In Section \ref{sec:model} we briefly describe
+the existing foundations for \tc{} and demonstrate from a theoretical perspective why
+the model flexibility is sufficient to accurately represent spectral fluxes. This 
+introduction is crucial to outlining how we later include individual atomic lines within 
+an existing \textit{Cannon} model. In Section \ref{sec:apogee} we apply a detailed
+chemical abundance \textit{Cannon} to the APOGEE Data Release (DR) 12 spectra.
+We discuss the suitability and limitations of the method in Section \ref{sec:discussion}.
+In Section \ref{sec:conclusion} we conclude with a summary of our findings.
 
 \section{Model}
 \label{sec:model}
@@ -150,62 +165,65 @@ of a coefficient vector $\cv$, and a label vector $\lv$:
 This form is flexible: the label vector $\lv$ may be linear in just a few common
 labels (e.g., \teff, \logg, \mh\footnote{\citet{Ness15a} use [Fe/H] in $\lv$, 
 but for the sake of distinguishing between overall metallicity and individual 
-abundances, throughout this \article{} we opt for \mh to describe overall 
-metallicity}) or a complex combination of all $K$ available labels, some of which
+abundances, throughout this \article{} we opt for \mh\ to describe overall 
+metallicity.}) or a complex combination of all $K$ available labels, some of which
 may have an unknown or non-trivial relationship with spectral fluxes \citep[e.g.,
-ages, masses, see][]{Nissen15, Ness15b}. The underlying principle is that the 
+ages and masses, see][]{Nissen15, Ness15b}. The underlying principle is that the 
 flux for any pixel from any star is predictable with a simple model, given the
 labels. Indeed, \citet{Ness15a} employ a quadratic-in-labels spectral model 
 using stellar parameters ($T_{\rm eff}$, $\log{g}$, [M/H]) and demonstrate 
 through cross-validation that these labels can be measured with a precision of 
-95~K in $T_{\rm eff}$, 0.24 in $\log{g}$, 0.08 in [M/H], with negligible biases. 
+95~K in $T_{\rm eff}$, 0.24 in $\log{g}$, and 0.08 in [M/H] with negligible biases. 
 
-% TODO: This needs rewording:
 The noise in Equation \ref{eq:cannon} can be taken as a quadrature combination
 of the variance in pixel flux $\sigma_{n\lambda}^2$ and the intrinsic variance 
-of the spectral model at each wavelength $s_\lambda^2$. The flux $f_{n\lambda}$
-can be written as a linear function of the label vector, leading to the
-single-pixel log-likelihood function
+of the spectral model at each wavelength $s_\lambda^2$, which, like $\cv$, is
+not known before the model is trained (see below).
+
+The flux $f_{n\lambda}$ can then be written as a linear function of the label 
+vector, leading to the single-pixel log-likelihood function
 
 \begin{equation}
-\ln{p}\left(f_{n\lambda}\given\cv^\intercal,\lv, s_{\lambda}^2\right) = -\frac{1}{2}\frac{\left[f_{n\lambda} - \cv^{\intercal}\cdot\lv\right]^2}{s_\lambda^2 + \sigma_{n\lambda}^2} -\frac{1}{2}\ln\left(s_{\lambda}^2 + \sigma_{n\lambda}^2\right).
+\ln{p}\left(f_{n\lambda}\given\cv^\intercal,\lv, s_{\lambda}\right) = -\frac{1}{2}\frac{\left[f_{n\lambda} - \cv^{\intercal}\cdot\lv\right]^2}{s_\lambda^2 + \sigma_{n\lambda}^2} -\frac{1}{2}\ln\left(s_{\lambda}^2 + \sigma_{n\lambda}^2\right).
 \label{eq:pixel-log-likelihood}
 \end{equation}
 
-The parameters $[\cv,s_\lambda^2]$ for each pixel with wavelength $\lambda$ need
-to be inferred. This is accomplished given some sample of stars where the labels
-are known with some fidelity (i.e., the training set). Here we will optimise the
-negative log-likelihood (Equation \ref{eq:pixel-log-likelihood}). This is the 
-training step of \tc{}, where the parameters $[\cv,s_\lambda^2]$ are optimised 
+The parameters \set{\cv,s_\lambda^2} for each pixel with wavelength $\lambda$
+need to be inferred. This is accomplished given some sample of stars where 
+the labels are known with high fidelity (i.e., the training set). Here we will 
+optimise the negative log-likelihood (Equation \ref{eq:pixel-log-likelihood}),
+which we later confirm to be sufficient for our purposes. This is the training 
+step of \tc{}, where the parameters \set{\cv,s_\lambda^2} are optimised 
 for a single pixel at $\lambda$ by considering all stars $N$:
 
-% TODO: Need to re-place 'arg max'
+
 \begin{equation}
-\cv,s_\lambda \leftarrow^{\arg\,\max} {\cv, s_\lambda} \sum_{n=1}^N \ln{p}\left(f_{n\lambda}\given\cv^\intercal,\lv,s_\lambda^2\right)
+\cv,s_\lambda \leftarrow \substack{\mbox{arg\,max}\\{\{\cv , s_\lambda\}}} \sum_{n=1}^N \ln{p}\left(f_{n\lambda}\given\cv^\intercal,\lv,s_\lambda^2\right)
 \end{equation}
 
-Once the coefficients $\{\cv,\ssq\}$ are known, \tc{} provides an approximate
-\textit{generative model} for spectral fluxes. Through a cheap linear product of
-$\cv^\intercal$ and $\lv$, \tc{} is approximating spectral synthesis, an 
-otherwise extremely expensive endeavour. This provides a number of advantages,
+Once the pixel coefficients and variance \set{\cv, s_\lambda^2} are known,
+\tc{} provides an approximate \textit{generative model} for spectral fluxes. 
+Through a cheap linear product of $\cv^\intercal$ and $\lv$, \tc{} is 
+effectively (and efficiently) approximating spectral synthesis, an otherwise
+extremely expensive endeavour. This provides a number of advantages,
 the most straightforward of which is the ability to efficiently determine $\lv$
-(i.e., the stellar parameters) for a new star outside the training set in a
-fraction of a second, which is about five orders of magnitude faster than
-existing analysis codes. We refer the reader to \citet{Ness15a} for a more
-detailed description of \tc{}. 
+(i.e., the stellar parameters) for a new star outside the training set. We refer
+the reader to \citet{Ness15a} for a more detailed description of \tc{}. 
 
 It is not straightforward to add individual chemical abundances as labels and
 expect equally impressive results.  Some chemical abundances only affect few
-pixels of the spectrum. Other elements only present transitions that are
-frequently blended with other elements, implying covariance between elemental
-abundances.  And all transitions will have linear (or higher-order) 
-relationships with stellar parameters.  Addressing these issues by increasing
-the complexity of the label vector introduces additional issues (e.g.,
-over-fitting, interpretability).  Although the existing \textit{Cannon}
-framework can be extended to include individual chemical abundances, they cannot
-be introduced by extensions of the label vector without additional issues.
+pixels of the spectrum. Other species (element and ionisation stage) only
+experience stimulated emission at wavelengths that are frequently blended
+with other species, inducing covariance between elemental abundances.
+And all transitions will likely have linear (or higher-order) relationships with
+stellar parameters.  Addressing these issues by increasing the complexity 
+of the label vector introduces additional issues (e.g., over-fitting, interpretability).
+Although the existing \textit{Cannon} framework can be extended to include
+individual chemical abundances, they cannot be introduced by extensions 
+of the label vector without considering these additional issues.
 
-% TODO: rewrite this so it all flows better.
+\subsection{Using the behaviour of spectral lines to understand why \tc\ works}
+
 Before we extend \tc{} to include individual chemical abundances, it is a useful
  exercise to understand \textit{why} a simple spectral model can 
 approximate synthesis calculations with comparable fidelity, and thus 
@@ -222,26 +240,34 @@ equivalent width (EW; $\mathcal{W}$) of a spectral line. Consider a single
 surrounding $\lambda_r$ ($f_{n\lambda_r-{\delta}},f_{n\lambda_{r+\delta}}$) are 
 well-approximated by a \textit{Cannon} spectral model. Because the absorption 
 line is well-represented by a Gaussian profile at this spectral resolution, the 
-flux at $\lambda_r$ is related to the EW of the line through
+flux at $\lambda_r$ is related to the EW of the line in star $n$ ($\mathcal{W}_n$):
 
 \begin{equation}
-\mathcal{W} = \sigma{}\sqrt{2\pi}(1 - f_{n\lambda_r})
+\mathcal{W}_n = \sigma{}\sqrt{2\pi}(1 - f_{n\lambda_r}).
 \label{eq:ew-flux}
 \end{equation}
 
-where $\sigma$ is the standard deviation of the profile. For typical FGK-type
-stars observed with $\mathcal{R} \lesssim 20,000$, $\sigma$ will be dominated by
-the line spread function (LSF). If we presume that the LSF is well-known, or 
-reasonably approximated by a fixed spectral resolution $\mathcal{R}$, then it is
-clear to see that \tc{} is implicitly modelling the EW of an atomic line as a 
-function of stellar labels, and modelling spectral flux through a per-pixel 
-scaling of $\sigma$. Indeed, the success of \tc{} suggests that the EW of an 
-atomic line can also be well-approximated by a simple model relating the labels 
-(i.e., stellar parameters and abundance of a single species). If such a model 
-could be constructed and appropriately included within the existing 
-\textit{Cannon} framework, it would permit the determination of individual 
-chemical abundances, whilst maintaining the flexibility in training on labels 
-with poorly-known relationships on spectral fluxes (e.g., ages).
+Here $\sigma$ is the standard deviation of the profile. For typical FGK-type
+stars observed with $\mathcal{R} \lesssim 20,000$, $\sigma$ will be dominated
+by the line spread function (LSF) of the spectrograph. Because \tc{} is best suited
+to large spectroscopic surveys, we can presume that the LSF is well-known, or
+at least reasonably constant for the training set, perhaps approximated by the 
+quoted spectral resolution $\mathcal{R}$. In Section \ref{sec:something} we use
+the knowledge of the spectrograph LSF, but for explanatory purposes here we will
+assume it is constant for all $n$ stars surrounding the profile at $\lambda_r$.
+
+If the profile width is constant, then it is straightforward to see by integrating
+\tc\ model the entire profile, \tc\ is implicitly modelling the \ew\ of an atomic line
+as a function of stellar labels, and modelling spectral flux through a per-pixel
+scaling of $\sigma_\lambda$. Indeed, the success of \tc\ implies that the 
+strength \ew\ of an atomic line could be well-approximated by a quadratic
+model of a label vector containing the stellar parameters, where \mh\ is 
+actually a proxy for the abundance of the atomic line in question. If such a
+\textit{line strength model} could be constructed and appropriately
+included within the existing \textit{Cannon} framework, it would permit the 
+determination of individual chemical abundances, whilst maintaining the 
+flexibility in training on labels with poorly-known relationships on spectral 
+fluxes (e.g., ages).
 
 We note that Equation \ref{eq:ew-flux} does not imply that \tc{} is limited in
 applicability to low-resolution ($\mathcal{R} \lesssim 20,000$) spectra. Quite 
@@ -249,39 +275,112 @@ the opposite. \tc{} is sufficiently flexible that in extremely high-resolution
 spectra, where absorption lines are more closely represented by Lorentzian or
 Hertzting functions, the flux values $f_{n\lambda}$ in the wings of a strong 
 line are still well-modelled by \tc{} (as judged by $\ssq$ and performance in
-cross-validation tests). Indeed, the line $\mathcal{W}$ would still be 
+cross-validation tests). Indeed, the line strength \ew\ would still be 
 predictable with high-fidelity, implying that the coefficients $\cv$ for pixels
-in the wings just scale in a different way. Equation \ref{eq:ew-flux} allows us
-to directly translate $\mathcal{W}$ to $f_{n\lambda}$, thereby accounting for 
-the flux contribution from a single atomic line. If the spectral resolving power
-were sufficiently high such that the absorption profiles appeared Lorentzian in
-nature, some prior information on the shape $\gamma$ would be required to 
-translate $\mathcal{W}$ to $f_{n\lambda}$. Thus, while Equation \ref{eq:ew-flux}
-allows the translation from $\mathcal{W}$ to $f_{n\lambda}$ for 
-$\mathcal{R} \lesssim 20,000$ spectra, given some knowledge of the LSF, no 
-limiting interpretation about \tc{} should be drawn. Importantly, all future 
+in the wings just scale in a different way. 
+
+The crucial inference from Equation \ref{eq:ew-flux} is that knowing the LSF
+allows us to directly translate \ew\ to $f_{n\lambda}$, thereby accounting for 
+the flux contribution from a single atomic line across all neighbouring pixels.
+If the spectral resolving power were sufficiently high such that the absorption
+profiles appeared Lorentzian, some prior information on the shape $\gamma$
+may be required to translate \ew\ to $f_{n\lambda}$. Importantly, all future 
 stellar spectroscopic surveys are currently planning for spectral resolutions
 $\mathcal{R} \lesssim 20,000$, in the perfect Gaussian-profile regime for this
 extension of \tc{}.
 
+
+To demonstrate that \tc\ is implicitly modelling the EW of an atomic line as
+a function of stellar parameters and the abundance of the given element,
+here we employ the quadratic-in-labels model from \citet{Ness2015a} to
+model the strength of a single atomic line. We used the NNN stars from the
+training set used by \citet{Ness2015a} and calculated the abundance of a
+Si 1 line at N \AA\ for thirty different EWs uniformly sampled between 5~m\AA\
+and 120~m\AA. These stars cover the main sequence and red giant branch
+(RGB), and the overall metallicity spans three decades from -2.5 to +0.5 dex.
+The abundances were calculated using MARCS model atmospheres \citep{marcs}
+and a modified Cython version of MOOG \citep[][2014 version]{Sneden1973}
+which includes ABO broadening of atomic lines \citep{ABO} and several 
+improvements to the treatment of hydrogen opacities. The atomic data
+employed is listed in Table \ref{tab:atomic-data}. We describe the 
+\textit{line strength model} that relates the line strength \ew\ for the $m$-th
+atomic line in star $n$ as,
+
+\begin{equation}
+\mathcal{W}_{n,m} \approx \psiv^{\intercal}\cdot\lv
+\label{eq:line-strength-model}
+\end{equation}
+
+\noindent{}where the label vector 
+$\lv = \{T_{\rm eff},\log{g},\log_{\epsilon}{\rm Si}\}$\footnote{Recall
+${\rm [Si/Fe]} \equiv {\rm [Si/H]} - {\rm [Fe/H]} \equiv \log_{\epsilon}{\rm Si} 
+- \log_{\epsilon}{\rm Si}_\odot - {\rm [Fe/H]}$, where we adopt the \citet{Asplund2009}
+solar abundances.} and the coefficients of the vector $\psiv$ for a given 
+atomic line need to be solved for. Combining Equations \ref{eq:ew-flux} and
+\ref{eq:line-strength-model} yields the approximate flux $f_{n,\lambda_r}$ that 
+atomic line $m$ contributes to star $n$ at wavelength $\lambda_r$, which we
+describe as $h(\lv|\psiv,\sigma)$:
+
+\begin{equation}
+f_{n,\lambda_r} \approx h(\lv|\psiv,\sigma,\lambda) \equiv 1 - \frac{\psiv^{\intercal}\cdot\lv}{\sigma\sqrt{2\pi}}
+\end{equation}
+
+We calculate $\psiv$ given the stellar parameters of the training set and the
+calculated $\logeps{(Si~1)}$ abundances from MOOG, calculated at many \ew\ values.
+The difference between the MOOG-calculated abundance and our line strength model
+is shown in the second panel of Figure \ref{fig:atomic-line-model-example}.
+Negligible bias is present, and the standard deviation is 0.01~dex, demonstrating
+that a quadratic-in-labels model can relate line strength \ew\ and abundance
+for all types of stars in the training set. This is further shown in the third panel of 
+Figure \ref{fig:atomic-line-model-example},
+which shows the spectrum surrounding the Si 1 line for a random star\footnote{The
+star is truly chosen at random, see Appendix \ref{appendix:reproducibility} for steps
+to reproduce this research.} in the training set. We calculated the corresponding
+line strength \ew\ given the stellar parameters and reported Si 1 abundance, 
+adopted a spectral resolution of $\mathcal{R} = 22,500$ and produced a model 
+spectrum of this atomic line following Equation \ref{ew-flux}. 
+
+We note that some of the 0.01~dex scatter between our line strength model and 
+MOOG (second panel of Figure \ref{fig:atomic-line-model-example}) is likely due to 
+the tolerance employed by MOOG's optimisation algorithm to calculate a line 
+abundance, given an EW. 
+
 % Show a figure with different EW vs abundances, colored by teff/logg
-
 % Then show the expected EW vs synthesis EW, and show the residual
-
 % Show a portion of the spectrum where we translate a modelled EW into a spectrum
 % by using some knowledge of the LSF
 
 
 
 
+% h relates W to flux values.
+% W 
+
+
+
+
+
+% Discuss using the Cannon model from Ness et al to model the EW as a func. of stellar params.
+
+\subsection{Using the behaviour of spectral lines to guide model complexity}
+
+Knowing that a simple model can relate the a single line abundance 
+$\log_{\epsilon}{\rm X}$ to the equivalent width \ew\, given the stellar
+parameters, it is intriguing to ask whether model atmosphere relations and
+the theory of spectral line formation can guide the level of model complexity
+required.
+
 
 % Show an example? The example could have a figure showing some spectral fluxes for a clean line, which is modelled by the cannon (with an example model spectrum) and then show the same model being used to train on EW.
 %An example of this is shown in Figure \ref{fig:cannon-ew-relation}, where a quadratic-in-labels \textit{Cannon} model is used to model spectral fluxes for X stars across the HR diagram. The data have been trained 
 
-Knowing that a simple model can relate the a single line abundance [X/H] and integrated strength of an atomic line $\mathcal{W}$, given stellar parameter labels, it is intriguing to ask whether model atmosphere relations and the theory of spectral line formation can guide the level of model complexity required.
+
 
 % How does EW of a line change w.r.t. stellar parameters
-\textbf{Description of how EW for a single line will change w.r.t stellar parameters}
+\textbf{DESCRIPTION OF HOW EW FOR A SINGLE LINE WILL CHANGE WITH RESPECT TO STELLAR PARAMETERS AND ABUNDANCE FOR A NEUTRAL LINE IN A GRAY ATMOSPHERE.}
+
+
+\subsection{Extending \tc{} to include individual atomic lines}
 
 We now have a functional form of a model that relates $\mathcal{W}$ to $\log_\epsilon\left({\textrm X}\right)$ (or a scaled-solar [X/H] value), given the stellar parameters, which themselves are part of the set of $K$ labels. It is interesting to note that Equation \ref{eq:ew-logx-model} is not dissimilar to the quadratic-in-labels model used by \citet{Ness15a} for APOGEE data. With only the prior knowledge that \textit{a simple model of the labels can predict spectral fluxes}, we have derived the appropriate functional form for a single absorption line. The model $\mathcal{W}\left({\rm [X/H]}, T, logg\right)$ simply approximates the curve-of-growth for a single line, and the coefficients still need to be calculated. The practicalities of determining these coefficients is outlined in Section \ref{sec:somewhere}. For the purposes of introducing the model, we can assume that they are easily calculable.
 
@@ -393,6 +492,9 @@ The authors are thankful for the following free online services which help make
 science reproducibility easier: GitHub, Travis Continuous Integration, and Zenodo.
 
 \begin{thebibliography}{99}
+
+\bibitem[Asplund et al.(2009)]{Asplund2009} Asplund, M., Grevesse, N., Sauval, A.~J., \& Scott, P.\ 2009, \araa, 47, 481 
+
 \bibitem[Astropy Collaboration et al.(2013)]{astropy} Astropy Collaboration, Robitaille, T.~P., Tollerud, E.~J., et al.\ 2013, \aap, 558, AA33
 
 \bibitem[Ho et al.(2015)]{Ho15} Ho, A., et al., in preparation
@@ -408,7 +510,10 @@ science reproducibility easier: GitHub, Travis Continuous Integration, and Zenod
 
 \label{lastpage}
 
-\section{Appendix A: Reproducing this research}
+\appendix
+\section{Reproducing this work}
+\label{appendix:reproducibility}
+
 This \article{} has been compiled from the \texttt{git} repository (abbreviated commit hash \texttt{\gitAbbrevHash} on \texttt{\gitBranch} branch) hosted online by GitHub at \texttt{github.com/andycasey/fireworks}. The data required to reproduce this analysis is persistently hosted through Zenodo \citep{DATA}. The complete analysis, figures and tables included in this \article{} can be reproduced in full using the following commands in a modern Unix-based terminal:
 \vspace{0.5em}
 
