@@ -36,10 +36,35 @@ class TestElementRepresentations(unittest.TestCase):
             self.assertEqual(i, utils.species(element))
 
 
-    def test_get_species_any_casing(self):
+    def test_get_species_lowercase(self):
+        for i, element in enumerate(self.periodic_table, start=1):
+            self.assertEqual(i, utils.species(element.lower()))
+
+
+    def test_get_species_uppercase(self):
         for i, element in enumerate(self.periodic_table, start=1):
             self.assertEqual(i, utils.species(element.upper()))
-            self.assertEqual(i, utils.species(element.lower()))
+            
+
+    def test_get_species_roman(self):
+        for i, element in enumerate(self.periodic_table, start=1):
+            for j in range(3):
+                self.assertEqual(i + 0.1 * j,
+                    utils.species("{0} {1}".format(element, "I" * (j + 1))))
+
+
+    def test_get_species_roman_lowercase(self):
+        for i, element in enumerate(self.periodic_table, start=1):
+            for j in range(3):
+                self.assertEqual(i + 0.1 * j,
+                    utils.species("{0} {1}".format(element.lower(), "i" * (j + 1))))
+
+
+    def test_get_species_roman_uppercase(self):
+        for i, element in enumerate(self.periodic_table, start=1):
+            for j in range(3):
+                self.assertEqual(i + 0.1 * j,
+                    utils.species("{0} {1}".format(element.upper(), "I" * (j + 1))))
 
 
     def test_get_element(self):
@@ -52,6 +77,4 @@ class TestElementRepresentations(unittest.TestCase):
             for j in range(1, 3):
                 self.assertEqual((element, j), 
                     utils.element(i + (j - 1) * 0.1, True))
-
-
 

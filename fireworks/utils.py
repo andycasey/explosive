@@ -7,6 +7,7 @@ __author__ = "Andy Casey <arc@ast.cam.ac.uk>"
 
 import sys
 import logging
+import numpy as np
 from time import time
 from collections import Counter
 from itertools import combinations_with_replacement
@@ -113,8 +114,51 @@ def species(element):
     else:
         ionisation = 0
 
-    return 1 + periodic_table.index(element) + ionisation/0.1
+    return 1 + periodic_table.index(element) + ionisation*0.1
     
+
+def xi_relation(effective_temperature, surface_gravity):
+    """
+    Estimate microtubulence from relations between effective temperature and
+    surface gravity. For giants (logg < 3.5) the relationship employed is from
+    Kirby et al. (2008, ) and for dwarfs (logg >= 3.5) the Reddy et al. (2003)
+    relation is used.
+
+    :param effective_temperature:
+        The effective temperature of the star in Kelvin.
+
+    :type effective_temperature:
+        float
+
+    :param surface_gravity:
+        The surface gravity of the star.
+
+    :type surface_gravity:
+        float
+
+    :returns:
+        The estimated microturbulence (km/s) from the given stellar parameters.
+
+    :rtype:
+        float
+    """
+
+    try:
+        _ = len(effective_temperature)
+
+    except TypeError:
+        if surface_gravity >= 3.5:
+            xi = 1.28 + 3.3e-4 * (effective_temperature - 6000) \
+                - 0.64 * (surface_gravity - 4.5)
+        else:
+            xi = 2.70 - 0.509 * surface_gravity
+    else:
+        xi = np.nan * np.ones(len(effective_temperature))
+        dwarfs = surface_gravity >= 3.5
+        xi[dwarfs] = 1.28 + 3.3e-4 * (effective_temperature[dwarfs] - 6000) \
+            - 0.64 * (surface_gravity[dwarfs] - 4.5)
+        xi[~dwarfs] = 2.70 - 0.509 * surface_gravity[~dwarfs]
+    return xi
 
 
 def progressbar(iterable, message=None, size=100):
