@@ -13,6 +13,110 @@ from itertools import combinations_with_replacement
 
 logger = logging.getLogger("cannon")
 
+
+def element(species, full_output=False):
+    """
+    Convert a floating point representation of a species to a string
+    representation of the element, and optionally, its ionisation level.
+    
+    :param species:
+        The floating-point representation of the transition.
+
+    :type species:
+        float or int
+
+    :param full_output: [optional]
+        Return the ionisation stage as well as the element.
+
+    :type full_output:
+        bool
+
+    :returns:
+        The element name, and optionally the ionisation level.
+    """
+    
+    periodic_table = '''H                                                  He
+                        Li Be                               B  C  N  O  F  Ne
+                        Na Mg                               Al Si P  S  Cl Ar
+                        K  Ca Sc Ti V  Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr
+                        Rb Sr Y  Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I  Xe
+                        Cs Ba Lu Hf Ta W  Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn
+                        Fr Ra Lr Rf'''
+    
+    lanthanoids    = '''La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb'''
+    actinoids      = '''Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No'''
+    
+    periodic_table = periodic_table.replace(' Ba ', ' Ba ' + lanthanoids + ' ')\
+        .replace(' Ra ', ' Ra ' + actinoids + ' ').split()
+    del actinoids, lanthanoids
+
+    try:
+        species = float(species)
+    except (TypeError, ValueError):
+        raise TypeError("species must be represented by a floating point-type")
+
+    if int(species) > len(periodic_table):
+        raise ValueError("""species '{0}' not recognised 
+            (molecular representations not supported)""".format(species))
+        
+    element = periodic_table[int(species) - 1]
+    ionisation = int(round(10 * (species % int(species))) + 1)
+    
+    return (element, ionisation) if full_output else element
+
+
+def species(element):
+    """
+    Converts a string representation of an element and its ionisation state
+    to a floating species value.
+
+    :param element:
+        The element to convert. Some examples are: "Si", "S 2", "Fe I".
+
+    :type element:
+        str
+
+    :returns:
+        A floating-point representation of the atomic number and the ionisation
+        stage.
+    """
+    
+    periodic_table = '''H                                                  He
+                        Li Be                               B  C  N  O  F  Ne
+                        Na Mg                               Al Si P  S  Cl Ar
+                        K  Ca Sc Ti V  Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr
+                        Rb Sr Y  Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I  Xe
+                        Cs Ba Lu Hf Ta W  Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn
+                        Fr Ra Lr Rf''' 
+    
+    lanthanoids    = '''La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb'''
+    actinoids      = '''Ac Th Pa U  Np Pu Am Cm Bk Cf Es Fm Md No'''
+    
+    periodic_table = periodic_table.replace(' Ba ', ' Ba ' + lanthanoids + ' ')\
+        .replace(' Ra ', ' Ra ' + actinoids + ' ').split()
+    del actinoids, lanthanoids
+    
+    try:
+        element = str(element)
+    except (TypeError, ValueError):
+        raise TypeError("element must be represented by a string-type")
+        
+    _ = element.split()
+    element = _.pop(0).title()
+    if len(_):
+        # Can only be an integer, or multiples of 'I'
+        _ = _[0].upper()
+        try:
+            ionisation = (_.count("I") if "I" in _ else int(_)) - 1
+        except (TypeError, ValueError):
+            raise TypeError("unrecognised ionisation level '{0}'".format(_))
+    else:
+        ionisation = 0
+
+    return 1 + periodic_table.index(element) + ionisation/0.1
+    
+
+
 def progressbar(iterable, message=None, size=100):
     """
     A progressbar.
