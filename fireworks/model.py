@@ -15,7 +15,7 @@ def requires_training_wheels(f):
     """
     def wrapper(model, *args, **kwargs):
         if not model._trained:
-            raise TypeError("the model needs training first")
+            raise TypeError("the model needs training/optimising first")
         return f(model, *args, **kwargs)
     return wrapper
 
